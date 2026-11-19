@@ -6,7 +6,7 @@ rust-version = "1.85"
 publish = false
 
 [lib]
-crate-type = ["staticlib"]
+crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 resvg = { version = "=0.50.0", default-features = false, features = ["raster-images"] }

@@ -108,6 +108,17 @@ fn average(rgba: &[u8], output: &mut [u32], size: usize) {
 }
 
 /// Rasterize self-contained UTF-8 SVG to top-down premultiplied BGRA.
+pub fn render(svg: &[u8], size: u32, color: Option<u32>) -> Option<Vec<u32>> {
+    if !(1..=256).contains(&size) || svg.is_empty() || svg.len() > 64 * 1024 {
+        return None;
+    }
+    let size = size as usize;
+    let mut pixels = vec![0; size * size];
+    paint(svg, size, color.filter(|color| *color <= 0x00ff_ffff), &mut pixels)?;
+    Some(pixels)
+}
+
+/// Rasterize self-contained UTF-8 SVG to top-down premultiplied BGRA.
 /// The caller owns both buffers and guarantees they are readable or writable
 /// for the declared lengths and do not overlap.
 #[no_mangle]
