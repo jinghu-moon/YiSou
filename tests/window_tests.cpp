@@ -72,11 +72,11 @@ void CheckSearchPlaceholder(std::wstring_view expected)
 void CheckIconBlit(unsigned edge)
 {
     const auto pixels = TablerPixels(TablerIcon::chevronDown, RGB(83, 98, 115), edge);
-    CHECK(pixels.size() == edge * edge);
+    CHECK(pixels && pixels->size() == edge * edge);
     ComPtr<ID2D1DeviceContext> canvas;
     CHECK(SUCCEEDED(drawingDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, canvas.GetAddressOf())));
     ComPtr<ID2D1Bitmap> icon;
-    CreateIconBitmap(*canvas.Get(), pixels, edge, icon);
+    CreateIconBitmap(*canvas.Get(), *pixels, edge, icon);
     CHECK(icon);
 
     const auto format = D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED);
@@ -104,12 +104,44 @@ void CheckIconBlit(unsigned edge)
         const auto* row = reinterpret_cast<const std::uint32_t*>(mapped.bits + y * mapped.pitch);
         for (unsigned x = 0; x < size.width; ++x) {
             const auto expected = x >= 8 && x < 8 + edge && y >= 11 && y < 11 + edge
-                ? pixels[(y - 11) * edge + x - 8] : 0u;
+                ? (*pixels)[(y - 11) * edge + x - 8] : 0u;
             matches &= row[x] == expected;
         }
     }
     readback->Unmap();
     CHECK(matches);
+}
+
+void CheckSvgRasterizer()
+{
+    constexpr auto wide = R"(<svg xmlns="http://www.w3.org/2000/svg" width="24" height="12" viewBox="0 0 24 12"><rect width="24" height="12" fill="red"/></svg>)";
+    const auto fitted = RasterizeSvgIcon(wide, 24);
+    CHECK(fitted.size() == 576 && fitted[0] == 0 && fitted[12 * 24] == 0xffff0000);
+    const auto layers = RasterizeSvgIcon(
+        R"(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"><path d="M0 0H1L0 1Z" fill="red"/><path d="M1 0V1H0Z" fill="blue"/></svg>)", 1);
+    CHECK(layers.size() == 1 && (layers[0] >> 24) >= 248);
+    CHECK(RasterizeSvgIcon(wide, 0).empty());
+    CHECK(RasterizeSvgIcon(wide, maxSvgIconSize + 1).empty());
+    CHECK(RasterizeSvgIcon("<broken", 24).empty());
+    CHECK(RasterizeSvgIcon(std::string(svgIconLimit + 1, 'x'), 24).empty());
+
+    const auto blue = TablerPixels(TablerIcon::chevronDown, RGB(0, 95, 184), 20);
+    CHECK(blue && blue == TablerPixels(TablerIcon::chevronDown, RGB(0, 95, 184), 20));
+    CHECK(blue != TablerPixels(TablerIcon::chevronDown, RGB(255, 0, 0), 20));
+    CHECK(blue != TablerPixels(TablerIcon::chevronDown, RGB(0, 95, 184), 25));
+    const auto original = *blue;
+    const auto leastRecent = TablerPixels(TablerIcon::chevronUp, RGB(0, 95, 184), 20);
+    for (unsigned index = 1; index <= 12; ++index) {
+        CHECK(blue == TablerPixels(TablerIcon::chevronDown, RGB(0, 95, 184), 20));
+        CHECK(TablerPixels(TablerIcon::chevronDown, RGB(index, 40, 90), 224));
+    }
+    CHECK(*blue == original);
+    CHECK(blue == TablerPixels(TablerIcon::chevronDown, RGB(0, 95, 184), 20));
+    CHECK(leastRecent != TablerPixels(TablerIcon::chevronUp, RGB(0, 95, 184), 20));
+    Engine invalid;
+    invalid.svgIcon = "<broken";
+    CHECK(EngineIcon(invalid, 24));
+    CHECK(EngineIcon(invalid, 24) == EngineIcon(Engine{}, 24));
 }
 
 void CheckHarmonyFont(const LOGFONTW& face)
@@ -208,23 +240,24 @@ int wmain(int argc, wchar_t** argv) try
         CheckIconBlit(MulDiv(engineChevronSize, monitorDpi, USER_DEFAULT_SCREEN_DPI));
         CheckIconBlit(MulDiv(engineIconSize, monitorDpi, USER_DEFAULT_SCREEN_DPI));
     }
+    CheckSvgRasterizer();
     for (unsigned index = 0; index < static_cast<unsigned>(TablerIcon::count); ++index) {
         constexpr unsigned size = 48;
         const auto pixels = TablerPixels(static_cast<TablerIcon>(index), RGB(0, 95, 184), size);
-        CHECK(pixels.size() == size * size);
-        CHECK(std::ranges::any_of(pixels, [](auto pixel) { return pixel == 0xff005fb8; }));
-        CHECK(std::ranges::any_of(pixels, [](auto pixel) { return pixel == 0; }));
+        CHECK(pixels && pixels->size() == size * size);
+        CHECK(std::ranges::any_of(*pixels, [](auto pixel) { return pixel == 0xff005fb8; }));
+        CHECK(std::ranges::any_of(*pixels, [](auto pixel) { return pixel == 0; }));
     }
     const auto browserIcon = TablerPixels(TablerIcon::browser, RGB(0, 95, 184), 48);
-    CHECK(browserIcon[24 * 48 + 40] == 0xff005fb8);
-    CHECK(browserIcon[24 * 48 + 45] == 0);
+    CHECK((*browserIcon)[24 * 48 + 40] == 0xff005fb8);
+    CHECK((*browserIcon)[24 * 48 + 45] == 0);
     for (const auto& engine : app.engines()) {
         for (const unsigned size : {16u, 24u, 32u, 48u}) {
             const auto pixels = EngineIcon(engine, size);
-            CHECK(pixels.size() == size * size);
-            CHECK(std::ranges::any_of(pixels, [](auto pixel) { return pixel == 0xff000000; }));
-            CHECK(std::ranges::any_of(pixels, [](auto pixel) { return pixel == 0; }));
-            CHECK(std::ranges::all_of(pixels, [](auto pixel) { return (pixel & 0x00ffffff) == 0; }));
+            CHECK(pixels && pixels->size() == size * size);
+            CHECK(std::ranges::any_of(*pixels, [](auto pixel) { return pixel == 0xff000000; }));
+            CHECK(std::ranges::any_of(*pixels, [](auto pixel) { return pixel == 0; }));
+            CHECK(std::ranges::all_of(*pixels, [](auto pixel) { return (pixel & 0x00ffffff) == 0; }));
         }
     }
     const auto imported = ReadIconFile(argv[2]);
@@ -237,11 +270,11 @@ int wmain(int argc, wchar_t** argv) try
     CHECK(ReadSvgIconFile(argv[2]).empty());
     constexpr unsigned svgSize = 48;
     const auto svgPixels = EngineIcon(svgEngine, svgSize);
-    CHECK(svgPixels.size() == svgSize * svgSize);
-    CHECK(svgPixels[svgSize / 2] == 0);
-    CHECK(svgPixels[svgSize * (svgSize / 2) + svgSize / 2] == 0); // The play triangle is transparent.
-    CHECK(svgPixels[svgSize * (svgSize / 2) + svgSize / 4] == 0xff000000);
-    CHECK(std::ranges::equal(svgPixels, EngineIcon(*app.findEngine(L"youtube"), svgSize)));
+    CHECK(svgPixels && svgPixels->size() == svgSize * svgSize);
+    CHECK((*svgPixels)[svgSize / 2] == 0);
+    CHECK((*svgPixels)[svgSize * (svgSize / 2) + svgSize / 2] == 0); // The play triangle is transparent.
+    CHECK((*svgPixels)[svgSize * (svgSize / 2) + svgSize / 4] == 0xff000000);
+    CHECK(svgPixels == EngineIcon(*app.findEngine(L"youtube"), svgSize));
 
     for (const auto& test : searchCases) {
         CHECK(ApplySettingsEngine(app.engines()[test.engine].id));
@@ -388,6 +421,25 @@ int wmain(int argc, wchar_t** argv) try
     Notify(settings, setDefault, BN_CLICKED);
     CHECK(app.activeEngine().id == L"custom-test");
     CHECK(SUCCEEDED(Paint(window)) && bitmapEngine == L"custom-test");
+    const auto oldIcon = engineBitmapPixels;
+    auto editedEngine = app.activeEngine();
+    editedEngine.svgIcon = svgEngine.svgIcon;
+    CHECK(app.editEngine(editedEngine) == AddEngineResult::added);
+    CHECK(SUCCEEDED(Paint(window)) && engineBitmap && bitmapEngine == L"custom-test");
+    CHECK(engineBitmapPixels && oldIcon && *engineBitmapPixels != *oldIcon);
+    CHECK(engineBitmapPixels == EngineIcon(editedEngine, Scale(engineIconSize)));
+    const UINT originalDpi = dpi;
+    RECT initialBounds{};
+    CHECK(GetWindowRect(window, &initialBounds));
+    for (const UINT monitorDpi : {96u, 120u, 144u, 168u, 192u, originalDpi}) {
+        SendMessageW(window, WM_DPICHANGED, MAKEWPARAM(monitorDpi, monitorDpi),
+            reinterpret_cast<LPARAM>(&initialBounds));
+        CHECK(SUCCEEDED(Paint(window)) && engineBitmap && chevronBitmaps[0]);
+        CHECK(engineBitmap->GetPixelSize().width == static_cast<unsigned>(Scale(engineIconSize)));
+        CHECK(chevronBitmaps[0]->GetPixelSize().width == static_cast<unsigned>(Scale(engineChevronSize)));
+    }
+    CHECK(app.editEngine(Engine{editedEngine.id, editedEngine.name, editedEngine.url,
+        editedEngine.group, editedEngine.color, {}, editedEngine.alias}) == AddEngineResult::added);
     CHECK(SetWindowTextW(edit, L" C++ 中文 "));
     SendMessageW(edit, WM_CHAR, VK_RETURN, 0);
     CHECK(PeekMessageW(&posted, window, runSearch, runSearch, PM_REMOVE));
@@ -709,7 +761,7 @@ int wmain(int argc, wchar_t** argv) try
     SendMessageW(window, WM_TIMER, graphicsIdleTimer, 0);
     CHECK(!composition && !drawingDevice && !dxgiDevice && !surface && !caretVisual);
     CHECK(editFont == cachedFont);
-    CHECK(!cachedIcon.empty() && EngineIcon(*app.findEngine(L"youtube"), svgSize).data() == cachedIcon.data());
+    CHECK(cachedIcon && EngineIcon(*app.findEngine(L"youtube"), svgSize) == cachedIcon);
     CHECK(app.preferences().font == testFont && ReadSearchText() == L"retained input");
     OpenSettings(window);
     CHECK(HasOpenSettings() && drawingDevice && !IsWindowVisible(window));

@@ -3,7 +3,7 @@
 #include "application.h"
 
 #include <windows.h>
-#include <d2d1_1.h>
+#include <memory>
 #include <span>
 
 namespace yisou::ui {
@@ -13,13 +13,15 @@ enum class TablerIcon {
 };
 
 const wchar_t* GroupName(EngineGroup group);
-void SetIconDevice(ID2D1Device* device);
+using SharedIcon = std::shared_ptr<const IconPixels>;
+inline constexpr unsigned maxSvgIconSize = 256;
+IconPixels RasterizeSvgIcon(std::string_view svg, unsigned size, COLORREF color = CLR_INVALID);
 IconPixels ReadIconFile(const wchar_t* path);
 std::string ReadSvgIconFile(const wchar_t* path);
-std::span<const std::uint32_t> EngineIcon(const Engine& engine, unsigned size);
+SharedIcon EngineIcon(const Engine& engine, unsigned size);
 void DrawIconPixels(HDC dc, std::span<const std::uint32_t> pixels, const RECT& bounds, unsigned size);
 void DrawEngineIcon(HDC dc, const Engine& engine, const RECT& bounds);
-std::span<const std::uint32_t> TablerPixels(TablerIcon icon, COLORREF color, unsigned size);
+SharedIcon TablerPixels(TablerIcon icon, COLORREF color, unsigned size);
 void DrawTablerIcon(HDC dc, TablerIcon icon, const RECT& bounds, COLORREF color);
 
 }

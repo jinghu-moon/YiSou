@@ -240,8 +240,12 @@ def summary(rows, title):
 def main():
     parser = ArgumentParser(description=__doc__)
     parser.add_argument("--refresh-preview", action="store_true")
+    parser.add_argument("--production-build", type=type(results))
     options = parser.parse_args()
     results.mkdir(parents=True, exist_ok=True)
+    if options.production_build:
+        compare_production(options.production_build.resolve())
+        return
     with shader_page() as page:
         report("exact-area-checks.csv", exact_checks(page))
         print("Analytic reference checks passed", flush=True)
@@ -255,6 +259,35 @@ def main():
     summary([row for row in rows if row["group"] != "fixture"], "Real icons")
     summary([row for row in rows if row["group"] == "fixture"], "Stress fixtures")
     summary(checks, "Reference and geometry cross-checks")
+
+
+def compare_production(executables):
+    rows = []
+    engines = (("Direct2D SVG", "YiSouDirect2dBenchmark.exe"),
+               ("resvg 16x", "YiSouSvgBenchmark.exe"))
+    for slot, (group, label, source) in enumerate(samples()):
+        svg_text = source.read_text(encoding="utf-8")
+        buffers = []
+        for index, (_, name) in enumerate(engines):
+            folder = results / f"production-{slot}-{index}"
+            folder.mkdir(exist_ok=True)
+            run([executables / name, source, folder, *map(str, sizes)], check=True)
+            buffers.append(folder)
+        for size in sizes:
+            reference = area_reference(svg_text, size, 64, "cairo")
+            for (method, _), folder in zip(engines, buffers, strict=True):
+                raw = np.fromfile(folder / f"{size}.raw", dtype=np.uint8).reshape(size, size, 4)
+                if np.any(raw[:, :, :3] > raw[:, :, 3:]):
+                    raise AssertionError((method, label, size, "invalid premultiplied output"))
+                rows.append({"group": group, "case": label, "size_px": size, "method": method,
+                             **metrics(raw[:, :, [2, 1, 0, 3]].astype(np.float64), reference)})
+    report("production-pixel-errors.csv", rows)
+    summary(rows, "Production comparison (white, edge, black, alpha)")
+    before, after = [np.mean([row["edge_white_mae"] for row in rows
+                             if row["method"] == method and row["edge_white_mae"] is not None])
+                     for method, _ in engines]
+    if after >= before:
+        raise AssertionError("Production renderer must improve average edge fidelity")
 
 
 if __name__ == "__main__":

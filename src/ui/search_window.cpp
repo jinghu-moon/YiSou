@@ -133,6 +133,7 @@ ComPtr<IDWriteTextFormat> engineFormat;
 ComPtr<ID2D1Bitmap> engineBitmap;
 std::array<ComPtr<ID2D1Bitmap>, 2> chevronBitmaps;
 EngineId bitmapEngine;
+SharedIcon engineBitmapPixels;
 
 int Scale(int value) { return MulDiv(value, dpi, USER_DEFAULT_SCREEN_DPI); }
 int WindowHeight() { return height + ((browserError || linkAvailable) ? 27 : 0); }
@@ -294,7 +295,6 @@ HRESULT InitDrawingDevice()
     if (FAILED(result)) return result;
     drawingDevice->SetMaximumTextureMemory(512 * 1024);
     dxgi.As(&dxgiDevice);
-    SetIconDevice(drawingDevice.Get());
     return S_OK;
 }
 
@@ -328,8 +328,8 @@ HRESULT InitComposition(HWND window)
 void ReleaseComposition()
 {
     YISOU_PERF_MEMORY_SCOPE("release_composition");
-    SetIconDevice(nullptr);
     engineBitmap.Reset();
+    engineBitmapPixels.reset();
     for (auto& bitmap : chevronBitmaps) bitmap.Reset();
     surface.Reset();
     caretVisual.Reset();
@@ -536,8 +536,11 @@ void PaintEngine(ID2D1DeviceContext& canvas, ID2D1SolidColorBrush& brush, const 
     const auto* preview = application->findEngine(displayedEngine);
     const auto& engine = preview ? *preview : application->activeEngine();
     const auto size = static_cast<unsigned>(Scale(engineIconSize));
-    if (!engineBitmap || bitmapEngine != engine.id) {
-        CreateIconBitmap(canvas, EngineIcon(engine, size), engine.icon.empty() ? size : iconSize, engineBitmap);
+    const auto pixels = EngineIcon(engine, size);
+    if (!engineBitmap || engineBitmapPixels != pixels) {
+        engineBitmap.Reset();
+        if (pixels) CreateIconBitmap(canvas, *pixels, engine.icon.empty() ? size : iconSize, engineBitmap);
+        engineBitmapPixels = pixels;
         bitmapEngine = engine.id;
     }
 
@@ -552,7 +555,9 @@ void PaintEngine(ID2D1DeviceContext& canvas, ID2D1SolidColorBrush& brush, const 
     if (!chevron) {
         const auto icon = engineFlyout ? TablerIcon::chevronUp : TablerIcon::chevronDown;
         constexpr auto color = RGB((mutedColor >> 16) & 255, (mutedColor >> 8) & 255, mutedColor & 255);
-        CreateIconBitmap(canvas, TablerPixels(icon, color, chevronSize), chevronSize, chevron);
+        if (const auto chevronPixels = TablerPixels(icon, color, chevronSize)) {
+            CreateIconBitmap(canvas, *chevronPixels, chevronSize, chevron);
+        }
     }
 
     D2D1_MATRIX_3X2_F layoutTransform{};

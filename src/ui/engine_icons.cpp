@@ -2,8 +2,6 @@
 #include "engine_icons.h"
 #include "../platform/performance.h"
 
-#include <d2d1_3.h>
-#include <shlwapi.h>
 #include <wincodec.h>
 #include <wrl/client.h>
 
@@ -12,7 +10,9 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <list>
 #include <map>
+#include <tuple>
 
 namespace yisou::ui {
 using i18n::Text;
@@ -57,11 +57,6 @@ IconPixels DecodeIcon(IWICImagingFactory& factory, IWICBitmapDecoder& decoder, u
     return pixels;
 }
 
-ComPtr<ID2D1DeviceContext5> iconContext;
-std::map<std::string, std::map<std::pair<unsigned, COLORREF>, IconPixels>, std::less<>> renderedIcons;
-size_t cacheBytes = 0;
-constexpr unsigned maxRenderSize = 256;
-constexpr size_t cacheLimit = 2 * 1024 * 1024;
 
 std::string_view ResourceBytes(const wchar_t* name)
 {
@@ -83,84 +78,57 @@ std::string SvgColor(COLORREF color)
     return hex;
 }
 
-IconPixels RenderSvg(std::string_view svg, unsigned size, COLORREF color)
+using IconKey = std::tuple<std::string_view, unsigned, COLORREF>;
+constexpr COLORREF bitmapKey = 0xfe000000;
+constexpr size_t cacheLimit = 2 * 1024 * 1024;
+
+struct CachedIcon {
+    std::string source;
+    unsigned size;
+    COLORREF color;
+    SharedIcon pixels;
+    size_t bytes;
+};
+
+// The UI thread owns the cache. Index keys refer to stable list entries.
+std::list<CachedIcon> iconLru;
+std::map<IconKey, std::list<CachedIcon>::iterator> iconIndex;
+size_t cacheBytes = 0;
+
+template<class Render>
+SharedIcon CachedPixels(const IconKey& key, Render render)
 {
-    if (!iconContext || svg.empty() || !size || size > maxRenderSize) return {};
-    YISOU_PERF_SCOPE("render_svg");
-
-    ComPtr<IStream> stream;
-    stream.Attach(SHCreateMemStream(reinterpret_cast<const BYTE*>(svg.data()), static_cast<UINT>(svg.size())));
-    const float edge = static_cast<float>(size);
-    ComPtr<ID2D1SvgDocument> document;
-    if (!stream || FAILED(iconContext->CreateSvgDocument(stream.Get(), D2D1::SizeF(edge, edge),
-        document.GetAddressOf()))) return {};
-
-    ComPtr<ID2D1SvgElement> root;
-    document->GetRoot(root.GetAddressOf());
-    if (!root) return {};
-    if (color != CLR_INVALID && FAILED(root->SetAttributeValue(L"color",
-        D2D1::ColorF(GetRValue(color) / 255.f, GetGValue(color) / 255.f, GetBValue(color) / 255.f)))) return {};
-    const auto number = D2D1_SVG_LENGTH_UNITS_NUMBER;
-    if (!root->IsAttributeSpecified(L"viewBox")) {
-        D2D1_SVG_LENGTH width{}, height{};
-        if (SUCCEEDED(root->GetAttributeValue(L"width", &width)) && SUCCEEDED(root->GetAttributeValue(L"height", &height))
-            && width.units == number && height.units == number && width.value > 0 && height.value > 0) {
-            const D2D1_SVG_VIEWBOX viewBox{0, 0, width.value, height.value};
-            if (FAILED(root->SetAttributeValue(L"viewBox", D2D1_SVG_ATTRIBUTE_POD_TYPE_VIEWBOX,
-                &viewBox, sizeof(viewBox)))) return {};
-        }
-    }
-    const D2D1_SVG_LENGTH viewport{edge, number};
-    if (FAILED(root->SetAttributeValue(L"width", viewport)) || FAILED(root->SetAttributeValue(L"height", viewport))) return {};
-
-    const auto format = D2D1::PixelFormat(DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED);
-    const auto targetProperties = D2D1::BitmapProperties1(D2D1_BITMAP_OPTIONS_TARGET, format, 96, 96);
-    const auto readbackProperties = D2D1::BitmapProperties1(
-        D2D1_BITMAP_OPTIONS_CPU_READ | D2D1_BITMAP_OPTIONS_CANNOT_DRAW, format, 96, 96);
-    ComPtr<ID2D1Bitmap1> target, readback;
-    if (FAILED(iconContext->CreateBitmap(D2D1::SizeU(size, size), nullptr, 0, &targetProperties, target.GetAddressOf()))
-        || FAILED(iconContext->CreateBitmap(D2D1::SizeU(size, size), nullptr, 0, &readbackProperties, readback.GetAddressOf()))) {
-        return {};
-    }
-
-    iconContext->SetTarget(target.Get());
-    iconContext->BeginDraw();
-    iconContext->Clear(D2D1::ColorF(0.f, 0.f, 0.f, 0.f));
-    iconContext->DrawSvgDocument(document.Get());
-    const auto drawn = iconContext->EndDraw();
-    iconContext->SetTarget(nullptr);
-    D2D1_MAPPED_RECT mapped{};
-    if (FAILED(drawn) || FAILED(readback->CopyFromBitmap(nullptr, target.Get(), nullptr))
-        || FAILED(readback->Map(D2D1_MAP_OPTIONS_READ, &mapped))) return {};
-
-    IconPixels pixels(static_cast<size_t>(size) * size);
-    const auto stride = size * sizeof(std::uint32_t);
-    for (unsigned row = 0; row < size; ++row) {
-        std::memcpy(pixels.data() + static_cast<size_t>(row) * size, mapped.bits + row * mapped.pitch, stride);
-    }
-    readback->Unmap();
-    return pixels;
-}
-
-std::span<const std::uint32_t> SvgPixels(std::string_view svg, unsigned size, COLORREF color = CLR_INVALID)
-{
-    const auto key = std::pair{size, color};
-    if (const auto image = renderedIcons.find(svg); image != renderedIcons.end()) {
-        if (const auto pixels = image->second.find(key); pixels != image->second.end()) {
-            YISOU_PERF_COUNT(svgCacheHit);
-            return pixels->second;
-        }
+    const auto [source, size, color] = key;
+    if (source.empty() || !size || size > maxSvgIconSize) return {};
+    if (const auto match = iconIndex.find(key); match != iconIndex.end()) {
+        YISOU_PERF_COUNT(svgCacheHit);
+        iconLru.splice(iconLru.begin(), iconLru, match->second);
+        return match->second->pixels;
     }
     YISOU_PERF_COUNT(svgCacheMiss);
-    auto pixels = RenderSvg(svg, size, color);
+    auto pixels = render();
     if (pixels.empty()) return {};
-    const size_t bytes = svg.size() + pixels.size() * sizeof(std::uint32_t);
-    if (cacheBytes + bytes > cacheLimit) {
-        renderedIcons.clear();
-        cacheBytes = 0;
+    auto result = std::make_shared<const IconPixels>(std::move(pixels));
+    const size_t bytes = source.size() + result->size() * sizeof(std::uint32_t);
+    while (cacheBytes + bytes > cacheLimit && !iconLru.empty()) {
+        const auto last = std::prev(iconLru.end());
+        iconIndex.erase(IconKey{last->source, last->size, last->color});
+        cacheBytes -= last->bytes;
+        iconLru.erase(last);
     }
+    auto entry = iconLru.emplace(iconLru.begin(), CachedIcon{std::string(source), size, color, result, bytes});
+    iconIndex.emplace(IconKey{entry->source, size, color}, entry);
     cacheBytes += bytes;
-    return renderedIcons[std::string(svg)].emplace(key, std::move(pixels)).first->second;
+    return result;
+}
+
+SharedIcon SvgPixels(std::string_view svg, unsigned size, COLORREF color = CLR_INVALID)
+{
+    return CachedPixels({svg, size, color}, [&] {
+        auto pixels = RasterizeSvgIcon(svg, size, color);
+        if (std::ranges::none_of(pixels, [](auto pixel) { return pixel >> 24; })) pixels.clear();
+        return pixels;
+    });
 }
 
 std::string SolidSvg(std::uint32_t color)
@@ -176,7 +144,7 @@ std::string SolidSvg(std::uint32_t color)
 RECT SquareBounds(const RECT& bounds)
 {
     const LONG size = std::clamp(std::min(bounds.right - bounds.left, bounds.bottom - bounds.top),
-        0L, static_cast<LONG>(maxRenderSize));
+        0L, static_cast<LONG>(maxSvgIconSize));
     const LONG x = bounds.left + (bounds.right - bounds.left - size) / 2;
     const LONG y = bounds.top + (bounds.bottom - bounds.top - size) / 2;
     return {x, y, x + size, y + size};
@@ -186,7 +154,7 @@ RECT SquareBounds(const RECT& bounds)
 
 void DrawIconPixels(HDC dc, std::span<const std::uint32_t> pixels, const RECT& bounds, unsigned size)
 {
-    if (pixels.empty() || IsRectEmpty(&bounds)) return;
+    if (!size || pixels.size() != static_cast<size_t>(size) * size || IsRectEmpty(&bounds)) return;
     BITMAPINFO info{};
     info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     info.bmiHeader.biWidth = static_cast<LONG>(size);
@@ -230,14 +198,19 @@ IconPixels ReadIconFile(const wchar_t* path)
     return DecodeIcon(*factory.Get(), *decoder.Get(), iconSize);
 }
 
-void SetIconDevice(ID2D1Device* device)
+extern "C" std::uint32_t yisou_svg_render(const char* svg, size_t length, std::uint32_t size,
+    std::uint32_t rgb, std::uint32_t* output, size_t count);
+
+IconPixels RasterizeSvgIcon(std::string_view svg, unsigned size, COLORREF color)
 {
-    iconContext.Reset();
-    if (!device) return;
-    ComPtr<ID2D1DeviceContext> context;
-    if (SUCCEEDED(device->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, context.GetAddressOf()))) {
-        context.As(&iconContext);
-    }
+    if (svg.empty() || svg.size() > svgIconLimit || !size || size > maxSvgIconSize) return {};
+    YISOU_PERF_SCOPE("render_svg");
+    const auto rgb = color == CLR_INVALID ? UINT32_MAX
+        : (static_cast<std::uint32_t>(GetRValue(color)) << 16)
+            | (static_cast<std::uint32_t>(GetGValue(color)) << 8) | GetBValue(color);
+    IconPixels output(static_cast<size_t>(size) * size);
+    if (!yisou_svg_render(svg.data(), svg.size(), size, rgb, output.data(), output.size())) return {};
+    return output;
 }
 
 std::string ReadSvgIconFile(const wchar_t* path)
@@ -247,16 +220,19 @@ std::string ReadSvgIconFile(const wchar_t* path)
     if (length <= 0 || length > svgIconLimit) return {};
     std::string svg(static_cast<size_t>(length), '\0');
     if (!input.seekg(0) || !input.read(svg.data(), static_cast<std::streamsize>(svg.size()))) return {};
-    const auto pixels = RenderSvg(svg, 64, CLR_INVALID);
-    if (std::ranges::none_of(pixels, [](auto pixel) { return pixel >> 24; })) return {};
+    if (!SvgPixels(svg, 64)) return {};
     return svg;
 }
 
-std::span<const std::uint32_t> EngineIcon(const Engine& engine, unsigned size)
+SharedIcon EngineIcon(const Engine& engine, unsigned size)
 {
-    if (!engine.icon.empty()) return engine.icon;
+    if (engine.icon.size() == iconSize * iconSize) {
+        const std::string_view data(reinterpret_cast<const char*>(engine.icon.data()),
+            engine.icon.size() * sizeof(std::uint32_t));
+        return CachedPixels({data, iconSize, bitmapKey}, [&] { return engine.icon; });
+    }
     const auto svg = engine.group == EngineGroup::custom ? std::string_view(engine.svgIcon) : ResourceBytes(engine.id.c_str());
-    if (const auto pixels = SvgPixels(svg, size); !pixels.empty()) return pixels;
+    if (const auto pixels = SvgPixels(svg, size)) return pixels;
     return SvgPixels(SolidSvg(engine.color), size);
 }
 
@@ -264,22 +240,25 @@ void DrawEngineIcon(HDC dc, const Engine& engine, const RECT& bounds)
 {
     const auto square = SquareBounds(bounds);
     const auto size = static_cast<unsigned>(square.right - square.left);
-    DrawIconPixels(dc, EngineIcon(engine, size), square, engine.icon.empty() ? size : iconSize);
+    if (const auto pixels = EngineIcon(engine, size)) {
+        DrawIconPixels(dc, *pixels, square, engine.icon.empty() ? size : iconSize);
+    }
 }
 
-std::span<const std::uint32_t> TablerPixels(TablerIcon icon, COLORREF color, unsigned size)
+SharedIcon TablerPixels(TablerIcon icon, COLORREF color, unsigned size)
 {
     constexpr std::array names{L"browser", L"check", L"chevron_down", L"chevron_up", L"eye", L"file_typography",
         L"keyboard", L"palette", L"search", L"settings", L"typography", L"history", L"plus"};
     static_assert(names.size() == static_cast<size_t>(TablerIcon::count));
-    return SvgPixels(ResourceBytes(names[static_cast<size_t>(icon)]), size, color);
+    const auto index = static_cast<size_t>(icon);
+    return index < names.size() ? SvgPixels(ResourceBytes(names[index]), size, color) : SharedIcon{};
 }
 
 void DrawTablerIcon(HDC dc, TablerIcon icon, const RECT& bounds, COLORREF color)
 {
     const auto square = SquareBounds(bounds);
     const auto size = static_cast<unsigned>(square.right - square.left);
-    DrawIconPixels(dc, TablerPixels(icon, color, size), square, size);
+    if (const auto pixels = TablerPixels(icon, color, size)) DrawIconPixels(dc, *pixels, square, size);
 }
 
 }

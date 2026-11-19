@@ -4,7 +4,7 @@
 
 ## 构建与测试
 
-使用 Visual Studio 2022 的「使用 C++ 的桌面开发」工作负载、Windows SDK 和 CMake 3.20 或以上版本。在仓库根目录运行以下命令。
+使用 Visual Studio 2022 的「使用 C++ 的桌面开发」工作负载、Windows SDK、CMake 3.20 或以上版本，以及 Rust stable 的 MSVC 工具链。构建时 Cargo 会按锁文件编译 resvg 静态库。在仓库根目录运行以下命令。
 
 ```powershell
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64
@@ -14,6 +14,8 @@ ctest --test-dir build -C Release --output-on-failure
 ```
 
 窗口测试默认使用 Windows 系统字体。如果本地已有 HarmonyOS Sans SC Regular，可将其放在 `assets/fonts/HarmonyOS_SansSC_Regular.ttf`，窗口测试会额外验证自定义字体的加载与恢复。
+
+运行 `.\build\Release\YiSou.exe --icon-preview` 可以查看 Direct2D SVG、resvg 16× 和 Cairo 参考图的原尺寸对比。内置和自定义 SVG 使用同一套 resvg 渲染流程，支持静态图形和内嵌位图，文字图标可先将字形转为路径。
 
 ## 许可证
 

@@ -28,6 +28,8 @@ constexpr std::array methods{L"Direct2D SVG", L"小尺寸专版 SVG", L"原尺�
 enum Method { svg, smallSvg, png, cubic, geometry, letter };
 constexpr std::array algorithmMethods{L"Direct2D SVG", L"Blend2D", L"Manson–Schaefer",
     L"联合采样 16×16", L"FreeType AutoHint", L"Windfoil WGSL", L"Slug · WGSL 移植"};
+constexpr std::array productionMethods{L"Direct2D SVG", L"resvg 16×", L"Cairo 64× 参考"};
+enum class PreviewMode { production, algorithms, formats };
 enum class SmallArtwork { none, search, flame, youtubeMono, youtubeColor };
 
 struct Sample {
@@ -329,7 +331,7 @@ struct Preview {
     HWND fullscreenButton{};
     WINDOWPLACEMENT windowed{sizeof(WINDOWPLACEMENT)};
     bool fullscreen{};
-    bool algorithms{true};
+    PreviewMode mode{PreviewMode::production};
     UINT dpi{USER_DEFAULT_SCREEN_DPI};
     size_t sample{initialSample};
     int largeSize{};
@@ -344,7 +346,8 @@ struct Preview {
     }
     std::span<const wchar_t* const> VisibleMethods() const
     {
-        if (algorithms) return algorithmMethods;
+        if (mode == PreviewMode::production) return productionMethods;
+        if (mode == PreviewMode::algorithms) return algorithmMethods;
         return methods;
     }
     int ColumnWidth() const { return std::max(Px(columnWidth), largeSize + Px(16)); }
@@ -352,21 +355,21 @@ struct Preview {
     void Select(size_t index)
     {
         sample = index;
-        Engine engine{};
-        engine.group = EngineGroup::custom;
-        engine.svgIcon = Resource(samples[index].resource);
-        const auto paths = algorithms ? SvgGeometry{} : ReadGeometry(*canvas.Get(), samples[index]);
+        const auto artwork = Resource(samples[index].resource);
+        const auto paths = mode == PreviewMode::formats ? ReadGeometry(*canvas.Get(), samples[index]) : SvgGeometry{};
         const auto visible = VisibleSizes();
         for (size_t row = 0; row < visible.size(); ++row) {
             const int size = visible[row];
             auto& images = pixels[row];
-            if (largeSize) {
-                images[svg] = SvgPixels(*canvas.Get(), samples[index], size);
-            } else {
-                const auto native = EngineIcon(engine, size);
-                images[svg].assign(native.begin(), native.end());
+            images[svg] = SvgPixels(*canvas.Get(), samples[index], size);
+            if (mode == PreviewMode::production) {
+                images[1] = RasterizeSvgIcon(artwork, size);
+                const auto name = L"preview_reference_" + std::to_wstring(size);
+                const auto sheet = OpenPng(*wic.Get(), name.c_str());
+                images[2] = sheet ? CopyPng(*sheet.Get(), index, 0, size) : IconPixels{};
+                continue;
             }
-            if (algorithms) {
+            if (mode == PreviewMode::algorithms) {
                 const auto name = L"preview_algorithms_" + std::to_wstring(size);
                 const auto sheet = OpenPng(*wic.Get(), name.c_str());
                 for (size_t col = 1; col < algorithmMethods.size(); ++col) {
@@ -375,12 +378,8 @@ struct Preview {
                 continue;
             }
             images[smallSvg].clear();
-            if (auto artwork = SmallSvg(samples[index].compactArtwork, size); !artwork.empty()) {
-                Engine variant{};
-                variant.group = EngineGroup::custom;
-                variant.svgIcon = std::move(artwork);
-                const auto compact = EngineIcon(variant, size);
-                images[smallSvg].assign(compact.begin(), compact.end());
+            if (const auto compact = SmallSvg(samples[index].compactArtwork, size); !compact.empty()) {
+                images[smallSvg] = RasterizeSvgIcon(compact, size);
             }
             images[png] = PngPixels(*wic.Get(), index, size, false);
             images[cubic] = CubicPixels(*canvas.Get(), PngPixels(*wic.Get(), index, size, true), size);
@@ -495,7 +494,7 @@ void Paint(HWND window, const Preview& preview)
             const auto& pixels = preview.pixels[row][col];
             if (pixels.empty()) {
                 const auto& sample = samples[preview.sample];
-                const bool absent = !preview.algorithms && ((col == letter && !sample.glyph)
+                const bool absent = preview.mode == PreviewMode::formats && ((col == letter && !sample.glyph)
                     || (col == smallSvg && (size > 24 || sample.compactArtwork == SmallArtwork::none)));
                 Label(dc, absent ? L"—" : L"不可用",
                     {split, top, split + column, bottom});
@@ -573,7 +572,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM key, LPARAM data)
                 InvalidateRect(window, nullptr, FALSE);
             }
         }
-        if (LOWORD(key) == sizeId && HIWORD(key) == CBN_SELCHANGE && !preview->algorithms) {
+        if (LOWORD(key) == sizeId && HIWORD(key) == CBN_SELCHANGE && preview->mode == PreviewMode::formats) {
             const auto index = SendMessageW(preview->sizeCombo, CB_GETCURSEL, 0, 0);
             if (index >= 0 && index <= static_cast<LRESULT>(largeSizes.size())) {
                 preview->largeSize = index ? largeSizes[static_cast<size_t>(index - 1)] : 0;
@@ -582,12 +581,14 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM key, LPARAM data)
             }
         }
         if (LOWORD(key) == modeId && HIWORD(key) == CBN_SELCHANGE) {
-            preview->algorithms = SendMessageW(preview->modeCombo, CB_GETCURSEL, 0, 0) == 0;
-            if (preview->algorithms) {
+            const auto index = SendMessageW(preview->modeCombo, CB_GETCURSEL, 0, 0);
+            if (index < 0 || index > static_cast<LRESULT>(PreviewMode::formats)) return 0;
+            preview->mode = static_cast<PreviewMode>(index);
+            if (preview->mode != PreviewMode::formats) {
                 preview->largeSize = 0;
                 SendMessageW(preview->sizeCombo, CB_SETCURSEL, 0, 0);
             }
-            EnableWindow(preview->sizeCombo, !preview->algorithms);
+            EnableWindow(preview->sizeCombo, preview->mode == PreviewMode::formats);
             preview->Select(preview->sample);
             UpdateScrollbars(window, *preview, true);
         }
@@ -682,10 +683,10 @@ int ShowPreview(HINSTANCE instance)
     }
     SendMessageW(preview.sizeCombo, CB_SETCURSEL, 0, 0);
     EnableWindow(preview.sizeCombo, FALSE);
+    SendMessageW(preview.modeCombo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"重构对比"));
     SendMessageW(preview.modeCombo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"算法对比"));
     SendMessageW(preview.modeCombo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"SVG / PNG"));
     SendMessageW(preview.modeCombo, CB_SETCURSEL, 0, 0);
-    SetIconDevice(device.Get());
     preview.Select(initialSample);
     Layout(window, preview);
     int height = preview.Px(headerHeight + padding);
@@ -719,7 +720,6 @@ int ShowPreview(HINSTANCE instance)
         TranslateMessage(&message);
         DispatchMessageW(&message);
     }
-    SetIconDevice(nullptr);
     return pending < 0 ? 1 : static_cast<int>(message.wParam);
 }
 

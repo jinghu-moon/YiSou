@@ -1,0 +1,16 @@
+[package]
+name = "yisou_svg"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+resvg = { version = "=0.50.0", default-features = false, features = ["raster-images"] }
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
