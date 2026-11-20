@@ -2,28 +2,84 @@ use crate::engine::{Engine, Icon};
 use image::{ImageReader, imageops::FilterType};
 use std::{collections::VecDeque, io::Cursor};
 
-macro_rules! embedded {
-    ($name:literal) => {
-        include_bytes!(concat!("../../assets/icons/", $name, ".svg"))
+#[path = "icon_sources.rs"]
+mod icon_sources;
+
+include!(concat!(env!("OUT_DIR"), "/icons_index.rs"));
+const RASTER_ICONS: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/icons.bin"));
+
+fn precomputed_icon(id: &str, edge: u32) -> Option<Vec<u32>> {
+    let compressed = RASTER_ICONS.get(icon_range(id, edge)?)?;
+    let size = (edge * edge * 4) as usize;
+    let bytes = miniz_oxide::inflate::decompress_to_vec_with_limit(compressed, size).ok()?;
+    (bytes.len() == size).then(|| {
+        bytes
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .copied()
+            .map(u32::from_le_bytes)
+            .collect()
+    })
+}
+
+pub fn chevron_icon(edge: u32, color: u32) -> Option<Vec<u32>> {
+    (color == icon_sources::CHEVRON_COLOR)
+        .then(|| precomputed_icon("chevron-down", edge))
+        .flatten()
+        .or_else(|| {
+            yisou_svg::render(
+                include_bytes!("../../assets/icons/tabler/chevron-down.svg"),
+                edge,
+                Some(color),
+            )
+        })
+}
+
+macro_rules! embedded_svg {
+    ($($name:literal),+ $(,)?) => {
+        fn embedded_svg(id: &str) -> Option<&'static [u8]> {
+            match id {
+                $($name => Some(include_bytes!(concat!("../../assets/icons/", $name, ".svg"))),)+
+                _ => None,
+            }
+        }
     };
 }
 
-fn embedded_svg(id: &str) -> Option<&'static [u8]> {
-    Some(match id {
-        "amazon" => embedded!("amazon"),
-        "baidu" => embedded!("baidu"),
-        "bilibili" => embedded!("bilibili"),
-        "bing" => embedded!("bing"),
-        "github" => embedded!("github"),
-        "google" => embedded!("google"),
-        "reddit" => embedded!("reddit"),
-        "stackoverflow" => embedded!("stackoverflow"),
-        "taobao" => embedded!("taobao"),
-        "youtube" => embedded!("youtube"),
-        "zhihu" => embedded!("zhihu"),
-        _ => return None,
-    })
+icon_sources::engine_icons!(embedded_svg);
+
+#[cfg(feature = "ocr")]
+macro_rules! ocr_icon {
+    ($($variant:ident, $name:literal, $size:literal;)+) => {
+        #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+        pub enum OcrIcon {
+            $($variant,)+
+        }
+
+        impl OcrIcon {
+            pub fn size(self) -> i32 {
+                match self {
+                    $(Self::$variant => $size,)+
+                }
+            }
+
+            fn source(self) -> (&'static str, &'static [u8]) {
+                match self {
+                    $(Self::$variant => ($name, include_bytes!(concat!("../../assets/icons/tabler/", $name, ".svg"))),)+
+                }
+            }
+
+            pub fn raster(self, edge: u32) -> Option<Vec<u32>> {
+                let (id, source) = self.source();
+                precomputed_icon(id, edge).or_else(|| yisou_svg::render(source, edge, None))
+            }
+        }
+    };
 }
+
+#[cfg(feature = "ocr")]
+icon_sources::ocr_icons!(ocr_icon);
 
 pub fn import_svg(bytes: Vec<u8>) -> Option<Icon> {
     let svg = String::from_utf8(bytes).ok()?;
@@ -93,7 +149,8 @@ impl IconCache {
             self.entries.push_front(entry);
         } else {
             let pixels = match &engine.icon {
-                Icon::Default => yisou_svg::render(embedded_svg(&engine.id)?, edge, None)?,
+                Icon::Default => precomputed_icon(&engine.id, edge)
+                    .or_else(|| yisou_svg::render(embedded_svg(&engine.id)?, edge, None))?,
                 Icon::Svg(svg) => yisou_svg::render(svg.as_bytes(), edge, Some(engine.color))?,
                 Icon::Bgra32(pixels) => {
                     let bitmap = image::RgbaImage::from_vec(
@@ -130,5 +187,69 @@ impl IconCache {
             });
         }
         Some(&self.entries.front()?.pixels)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bundled_icons_match_runtime_rasterization() {
+        for dpi in [96, 120, 144, 168, 192] {
+            for engine in crate::engine::built_in_engines() {
+                let source = embedded_svg(&engine.id).unwrap();
+                for size in [20, 24, 28, 36] {
+                    let edge = (size * dpi + 48) / 96;
+                    assert_eq!(
+                        precomputed_icon(&engine.id, edge).unwrap(),
+                        yisou_svg::render(source, edge, None).unwrap(),
+                        "{} at {edge}px",
+                        engine.id
+                    );
+                }
+            }
+            let edge = (16 * dpi + 48) / 96;
+            assert_eq!(
+                precomputed_icon("chevron-down", edge).unwrap(),
+                yisou_svg::render(
+                    include_bytes!("../../assets/icons/tabler/chevron-down.svg"),
+                    edge,
+                    Some(icon_sources::CHEVRON_COLOR),
+                )
+                .unwrap()
+            );
+        }
+    }
+
+    #[cfg(feature = "ocr")]
+    #[test]
+    fn bundled_ocr_icons_match_runtime_rasterization() {
+        for icon in [
+            OcrIcon::Copy,
+            OcrIcon::Search,
+            OcrIcon::Close,
+            OcrIcon::Check,
+            OcrIcon::Scan,
+            OcrIcon::Loader,
+        ] {
+            let (id, source) = icon.source();
+            for dpi in [96, 120, 144, 168, 192, 240] {
+                let edge = ((icon.size() * dpi + 48) / 96) as u32;
+                let reference = yisou_svg::render(source, edge, None).unwrap();
+                assert!(
+                    reference
+                        .iter()
+                        .any(|pixel| (1..255).contains(&(pixel >> 24)))
+                );
+                if dpi <= 192 {
+                    assert_eq!(
+                        precomputed_icon(id, edge).as_deref(),
+                        Some(reference.as_slice())
+                    );
+                }
+                assert_eq!(icon.raster(edge), Some(reference), "{id} at {dpi} DPI");
+            }
+        }
     }
 }

@@ -2,7 +2,7 @@ mod hotkeys;
 mod selection;
 
 pub use hotkeys::{Hotkey, HotkeySet, KeyBindings};
-pub use selection::{Foreground, SelectionError, clipboard_text};
+pub use selection::{Foreground, SelectionCopy, SelectionError, clipboard_text};
 
 use crate::application::Browser;
 use crate::engine::is_browser_url;

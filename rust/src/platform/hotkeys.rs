@@ -11,6 +11,8 @@ pub enum Hotkey {
     Main,
     Selection,
     Clipboard,
+    #[cfg(feature = "ocr")]
+    Ocr,
 }
 
 #[derive(Clone, Copy, Default)]
@@ -18,6 +20,8 @@ pub struct KeyBindings {
     pub main: Shortcut,
     pub selection: Option<Shortcut>,
     pub clipboard: Option<Shortcut>,
+    #[cfg(feature = "ocr")]
+    pub ocr: Option<Shortcut>,
 }
 
 struct Listener {
@@ -78,12 +82,13 @@ impl HotkeySet {
     pub fn apply(&mut self, bindings: KeyBindings) -> io::Result<()> {
         let use_alt = bindings.main == Shortcut::default();
         let requested: Vec<_> = [
-            (!use_alt).then_some(bindings.main),
-            bindings.selection,
-            bindings.clipboard,
+            ((!use_alt).then_some(bindings.main), Hotkey::Main),
+            (bindings.selection, Hotkey::Selection),
+            (bindings.clipboard, Hotkey::Clipboard),
+            #[cfg(feature = "ocr")]
+            (bindings.ocr, Hotkey::Ocr),
         ]
         .into_iter()
-        .zip([Hotkey::Main, Hotkey::Selection, Hotkey::Clipboard])
         .filter_map(|(key, role)| key.map(|key| (key, role)))
         .collect();
         if requested.iter().enumerate().any(|(index, (key, _))| {

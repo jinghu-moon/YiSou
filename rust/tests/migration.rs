@@ -202,7 +202,10 @@ fn search_retry_history_and_alias_sources() {
     let history = app.history().page("test", "terminal", 0).unwrap();
     assert_eq!(history.len(), 1);
     assert_eq!(history[0].origin, Origin::Clipboard);
+    app.history().release_cache();
+    assert_eq!(app.history().page("test", "terminal", 0).unwrap(), history);
     assert!(app.history().delete(history[0].id).unwrap());
+    app.history().release_cache();
     assert!(
         app.history()
             .page("test", "terminal", 0)
@@ -219,6 +222,39 @@ fn search_retry_history_and_alias_sources() {
         app.history().page("test", "terminal", 0).unwrap()[0].origin,
         Origin::History
     );
+}
+
+#[test]
+fn ocr_search_preserves_alias_like_text_and_records_origin() {
+    let directory = tempfile::tempdir().unwrap();
+    let browser = TestBrowser::default();
+    let store = JsonSettings::new(directory.path().join("settings.json"));
+    let mut app = Application::new(
+        store.load().unwrap(),
+        store,
+        browser.clone(),
+        History::new(directory.path().join("history.json")),
+    )
+    .unwrap();
+    app.change_settings(|settings| settings.preferences.record_history = true)
+        .unwrap();
+    let text = "#g cargo error E0425";
+    let result = app.search(Query {
+        text: text.into(),
+        engine: Some("bing".into()),
+        origin: Origin::Ocr,
+        source: String::new(),
+    });
+    assert!(matches!(
+        result,
+        SearchOutcome::Opened {
+            history_error: None
+        }
+    ));
+    assert!(browser.calls.borrow()[0].contains("bing.com/search?q=%23g%20cargo%20error%20E0425"));
+    let history = app.history().page("", "", 0).unwrap();
+    assert_eq!(history[0].origin, Origin::Ocr);
+    assert_eq!(history[0].query, text);
 }
 
 #[test]
@@ -263,6 +299,65 @@ fn config_and_engines_round_trip_and_failed_commit() {
             .is_err()
     );
     assert_eq!(app.settings(), &expected);
+}
+
+#[test]
+fn built_in_aliases_override_search_and_round_trip() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("settings.json");
+    let store = JsonSettings::new(path.clone());
+    let browser = TestBrowser::default();
+    let mut app = Application::new(
+        Settings::default(),
+        JsonSettings::new(path),
+        browser.clone(),
+        History::new(directory.path().join("history.json")),
+    )
+    .unwrap();
+    let original = app
+        .engines()
+        .iter()
+        .find(|e| e.id == "baidu")
+        .unwrap()
+        .clone();
+    app.toggle_pin("baidu").unwrap();
+    app.save_engine(custom("custom-alias")).unwrap();
+    app.set_built_in_alias("baidu", " #BAIDU2 ".into()).unwrap();
+    let expected = app.settings().clone();
+    for alias in ["g", "#CUSTOM-ALIAS", "1invalid"] {
+        assert!(app.set_built_in_alias("baidu", alias.into()).is_err());
+    }
+    assert!(app.set_built_in_alias("missing", "new".into()).is_err());
+    assert!(app.save_engine(custom("BAIDU2")).is_err());
+    assert_eq!(store.load().unwrap(), expected);
+    assert_eq!(app.pinned_engine(0), Some("baidu"));
+    assert_eq!(app.suggestions("#baidu2")[0].id, "baidu");
+    assert!(app.suggestions("#bd").iter().all(|e| e.id != "baidu"));
+    assert!(matches!(
+        app.search(typed("#BAIDU2 中文")),
+        SearchOutcome::Opened { .. }
+    ));
+    assert_eq!(browser.calls.borrow()[0], search_url(&original.url, "中文"));
+
+    let pack = directory.path().join("engines.json");
+    app.export_engine_pack(&pack).unwrap();
+    app.set_built_in_alias("baidu", String::new()).unwrap();
+    assert!(
+        app.engines()
+            .iter()
+            .find(|e| e.id == "baidu")
+            .unwrap()
+            .alias
+            .is_empty()
+    );
+    app.import_engine_pack(&pack).unwrap();
+    assert_eq!(store.load().unwrap(), expected);
+    app.set_built_in_alias("baidu", original.alias.clone())
+        .unwrap();
+    assert_eq!(
+        app.engines().iter().find(|e| e.id == "baidu"),
+        Some(&original)
+    );
 }
 
 #[test]

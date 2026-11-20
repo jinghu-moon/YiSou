@@ -19,6 +19,7 @@ pub enum Origin {
     Selection,
     Clipboard,
     History,
+    Ocr,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -47,6 +48,10 @@ impl History {
             path,
             records: None,
         }
+    }
+
+    pub fn release_cache(&mut self) {
+        self.records = None;
     }
 
     fn load(&mut self) -> Result<&[Record], StorageError> {
@@ -88,8 +93,8 @@ impl History {
             .load()?
             .iter()
             .filter(|record| {
-                record.query.to_lowercase().contains(&keyword)
-                    && record.source.to_lowercase().contains(&source)
+                (keyword.is_empty() || record.query.to_lowercase().contains(&keyword))
+                    && (source.is_empty() || record.source.to_lowercase().contains(&source))
             })
             .skip(page.saturating_mul(24))
             .take(24)
@@ -208,6 +213,12 @@ impl<S: SettingsStore, B: Browser> Application<S, B> {
 
     pub fn export_engine_pack(&self, path: &Path) -> Result<(), StorageError> {
         write_json(path, &self.settings.engine_pack())
+    }
+
+    pub fn set_built_in_alias(&mut self, id: &str, alias: String) -> Result<(), UpdateError> {
+        self.change_settings(|settings| {
+            settings.built_in_aliases.insert(id.to_owned(), alias);
+        })
     }
 
     pub fn save_engine(&mut self, mut engine: Engine) -> Result<String, UpdateError> {
@@ -358,7 +369,7 @@ impl<S: SettingsStore, B: Browser> Application<S, B> {
         self.last_query = match query.origin {
             Origin::Typed => text.into(),
             Origin::Selection => preview_text(text),
-            Origin::Clipboard | Origin::History => query.text.clone(),
+            Origin::Clipboard | Origin::History | Origin::Ocr => query.text.clone(),
         };
         let history_error = if self.settings.preferences.record_history {
             let timestamp_ms = SystemTime::now()

@@ -1,5 +1,8 @@
+mod copy;
+
 use std::ffi::OsString;
 use std::io;
+use std::mem::ManuallyDrop;
 use std::os::windows::ffi::OsStringExt;
 use std::path::PathBuf;
 use std::ptr::null_mut;
@@ -8,27 +11,48 @@ use std::time::{Duration, Instant};
 use windows::Win32::System::Com::{
     CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize,
 };
-use windows::Win32::System::Ole::{
-    OleFlushClipboard, OleGetClipboard, OleInitialize, OleSetClipboard, OleUninitialize,
-};
-use windows::Win32::UI::Accessibility::{
-    CUIAutomation, IUIAutomation, IUIAutomationElement, IUIAutomationTextPattern,
-    TextPatternRangeEndpoint_End, TextPatternRangeEndpoint_Start, UIA_TextPatternId,
+use windows::{
+    Win32::{
+        Foundation::{HWND as ComWindow, VARIANT_BOOL},
+        System::Variant::{
+            VARIANT, VARIANT_0, VARIANT_0_0, VARIANT_0_0_0, VT_BOOL, VT_BSTR, VT_I4, VariantClear,
+        },
+        UI::Accessibility::*,
+    },
+    core::{BSTR, Interface},
 };
 use windows_sys::Win32::Foundation::{CloseHandle, HWND};
-use windows_sys::Win32::System::DataExchange::{
-    CloseClipboard, GetClipboardData, GetClipboardOwner, GetClipboardSequenceNumber, OpenClipboard,
-};
+use windows_sys::Win32::System::DataExchange::{CloseClipboard, GetClipboardData, OpenClipboard};
 use windows_sys::Win32::System::Memory::{GlobalLock, GlobalSize, GlobalUnlock};
 use windows_sys::Win32::System::Threading::{
     OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
 };
 use windows_sys::Win32::UI::Controls::EM_GETSEL;
-use windows_sys::Win32::UI::Input::KeyboardAndMouse::*;
 use windows_sys::Win32::UI::WindowsAndMessaging::*;
 
 const LIMIT: usize = 2048;
 const UNICODE_TEXT: u32 = 13;
+const COPY_BUDGET: Duration = Duration::from_millis(420);
+
+#[derive(Clone, Copy)]
+pub struct SelectionCopy {
+    pub clipboard_window: usize,
+    pub shortcut_key: u32,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum WindowKind {
+    Other,
+    Chromium,
+    Terminal,
+    Console,
+}
+
+impl WindowKind {
+    fn terminal(self) -> bool {
+        matches!(self, Self::Terminal | Self::Console)
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum SelectionError {
@@ -92,7 +116,7 @@ impl Foreground {
     pub fn read_selection(
         self,
         deadline: Instant,
-        copy_allowed: bool,
+        copy: Option<SelectionCopy>,
         cancelled: &AtomicBool,
     ) -> Result<String, SelectionError> {
         let active =
@@ -110,16 +134,34 @@ impl Foreground {
                 return Ok(if active() { text } else { String::new() });
             }
         }
-        let terminal = class(self.window) == "CASCADIA_HOSTING_WINDOW_CLASS";
-        let (text, copy_safe) = automation_selection(self.process, terminal, &active);
+        let kind = match class(self.window).as_str() {
+            "Chrome_WidgetWin_1" => WindowKind::Chromium,
+            "CASCADIA_HOSTING_WINDOW_CLASS" => WindowKind::Terminal,
+            "ConsoleWindowClass" => WindowKind::Console,
+            _ => WindowKind::Other,
+        };
+        let uia_deadline = if copy.is_some() {
+            deadline.checked_sub(COPY_BUDGET).unwrap_or(deadline)
+        } else {
+            deadline
+        };
+        let (text, password) = self.automation_selection(kind, copy.is_some(), &|| {
+            Instant::now() < uia_deadline && active()
+        });
         if !active() {
             return Ok(String::new());
         }
         if let Some(text) = text {
             return Ok(text);
         }
-        if copy_allowed && (copy_safe || edit) && class(self.window) != "ConsoleWindowClass" {
-            return copy_selection(self.process, terminal, deadline, &active);
+        if let Some(copy) = copy.filter(|_| !password && kind != WindowKind::Console) {
+            return copy::read(
+                self.process,
+                kind == WindowKind::Terminal,
+                deadline,
+                copy,
+                &active,
+            );
         }
         Ok(String::new())
     }
@@ -192,45 +234,172 @@ impl Drop for Com {
     }
 }
 
-fn automation_selection(
-    process: u32,
-    terminal: bool,
-    active: &impl Fn() -> bool,
-) -> (Option<String>, bool) {
-    if unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.is_err() {
-        return (None, false);
-    }
-    let _com = Com;
-    let automation: IUIAutomation =
-        match unsafe { CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER) } {
-            Ok(automation) => automation,
-            Err(_) => return (None, false),
-        };
-    let Ok(mut element) = (unsafe { automation.GetFocusedElement() }) else {
-        return (None, false);
-    };
-    if unsafe { element.CurrentProcessId() }.ok() != Some(process as i32) {
-        return (None, false);
-    }
-    if unsafe { element.CurrentIsPassword() }.map_or(true, |value| value.as_bool()) {
-        return (None, false);
-    }
-    let Ok(walker) = (unsafe { automation.ControlViewWalker() }) else {
-        return (None, false);
-    };
-    for _ in 0..8 {
-        if !active() || unsafe { element.CurrentProcessId() }.ok() != Some(process as i32) {
-            break;
+impl Foreground {
+    fn automation_selection(
+        self,
+        kind: WindowKind,
+        copy_allowed: bool,
+        active: &impl Fn() -> bool,
+    ) -> (Option<String>, bool) {
+        if !active() || unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.is_err() {
+            return (None, false);
         }
-        if let Some(text) = pattern_text(&element, terminal, active) {
-            return (Some(text), true);
+        let _com = Com;
+        let automation: IUIAutomation =
+            match unsafe { CoCreateInstance(&CUIAutomation8, None, CLSCTX_INPROC_SERVER) } {
+                Ok(automation) => automation,
+                Err(_) => return (None, false),
+            };
+        if let Ok(timeouts) = automation.cast::<IUIAutomation2>() {
+            let timeout = if copy_allowed { 150 } else { 250 };
+            unsafe {
+                let _ = timeouts.SetConnectionTimeout(timeout);
+                let _ = timeouts.SetTransactionTimeout(timeout);
+            }
         }
-        let Ok(parent) = (unsafe { walker.GetParentElement(&element) }) else {
-            break;
-        };
-        element = parent;
+        let terminal = kind.terminal();
+        let walker = unsafe { automation.RawViewWalker() }.ok();
+        let mut focused = unsafe { automation.GetFocusedElement() }.ok();
+        for _ in 0..8 {
+            let Some(element) = focused else { break };
+            if !active() || unsafe { element.CurrentProcessId() }.ok() != Some(self.process as i32)
+            {
+                break;
+            }
+            match unsafe { element.CurrentIsPassword() } {
+                Ok(value) if value.as_bool() => return (None, true),
+                Err(_) if !terminal => return (None, true),
+                Err(_) => break,
+                _ => {}
+            }
+            if let Some(text) = pattern_text(&element, terminal, active) {
+                return (Some(text), false);
+            }
+            let control = unsafe { element.CurrentControlType() }.ok();
+            if control == Some(UIA_EditControlTypeId) || control == Some(UIA_DocumentControlTypeId)
+            {
+                if !terminal {
+                    return (None, false);
+                }
+                break;
+            }
+            if control == Some(UIA_WindowControlTypeId) {
+                break;
+            }
+            focused = walker
+                .as_ref()
+                .and_then(|walker| unsafe { walker.GetParentElement(&element) }.ok());
+        }
+        if !active() || (copy_allowed && kind == WindowKind::Other) {
+            return (None, false);
+        }
+        (self.window_selection(&automation, kind, active), false)
     }
-    (None, true)
+
+    fn window_selection(
+        self,
+        automation: &IUIAutomation,
+        kind: WindowKind,
+        active: &impl Fn() -> bool,
+    ) -> Option<String> {
+        unsafe {
+            let window = automation
+                .ElementFromHandle(ComWindow(self.window as HWND))
+                .ok()?;
+            if kind == WindowKind::Console {
+                return pattern_text(&window, true, active);
+            }
+            let visible = automation
+                .CreatePropertyCondition(
+                    UIA_IsOffscreenPropertyId,
+                    &uia_value(
+                        VT_BOOL,
+                        VARIANT_0_0_0 {
+                            boolVal: VARIANT_BOOL(0),
+                        },
+                    ),
+                )
+                .ok()?;
+            if kind == WindowKind::Terminal {
+                let mut name = uia_value(
+                    VT_BSTR,
+                    VARIANT_0_0_0 {
+                        bstrVal: ManuallyDrop::new(BSTR::from("TermControl")),
+                    },
+                );
+                let terminal = automation.CreatePropertyCondition(UIA_ClassNamePropertyId, &name);
+                let _ = VariantClear(&mut name);
+                let condition = automation
+                    .CreateAndCondition(&visible, &terminal.ok()?)
+                    .ok()?;
+                let panes = window.FindAll(TreeScope_Descendants, &condition).ok()?;
+                let count = panes.Length().ok()?;
+                for index in 0..count {
+                    if !active() {
+                        break;
+                    }
+                    let Ok(pane) = panes.GetElement(index) else {
+                        continue;
+                    };
+                    if count == 1 || pane.CurrentHasKeyboardFocus().is_ok_and(|v| v.as_bool()) {
+                        return pattern_text(&pane, true, active);
+                    }
+                }
+                return None;
+            }
+            let document = automation
+                .CreatePropertyCondition(
+                    UIA_ControlTypePropertyId,
+                    &uia_value(
+                        VT_I4,
+                        VARIANT_0_0_0 {
+                            lVal: UIA_DocumentControlTypeId.0,
+                        },
+                    ),
+                )
+                .ok()?;
+            let has_text = automation
+                .CreatePropertyCondition(
+                    UIA_IsTextPatternAvailablePropertyId,
+                    &uia_value(
+                        VT_BOOL,
+                        VARIANT_0_0_0 {
+                            boolVal: VARIANT_BOOL(-1),
+                        },
+                    ),
+                )
+                .ok()?;
+            let visible_document = automation.CreateAndCondition(&document, &visible).ok()?;
+            let condition = automation
+                .CreateAndCondition(&visible_document, &has_text)
+                .ok()?;
+            let attempts = if kind == WindowKind::Chromium { 4 } else { 1 };
+            for attempt in 0..attempts {
+                if !active() {
+                    break;
+                }
+                if let Ok(document) = window.FindFirst(TreeScope_Descendants, &condition) {
+                    return pattern_text(&document, false, active);
+                }
+                if attempt + 1 < attempts && active() {
+                    std::thread::sleep(Duration::from_millis(35));
+                }
+            }
+            None
+        }
+    }
+}
+
+fn uia_value(tag: windows::Win32::System::Variant::VARENUM, value: VARIANT_0_0_0) -> VARIANT {
+    VARIANT {
+        Anonymous: VARIANT_0 {
+            Anonymous: ManuallyDrop::new(VARIANT_0_0 {
+                vt: tag,
+                Anonymous: value,
+                ..Default::default()
+            }),
+        },
+    }
 }
 
 fn pattern_text(
@@ -290,6 +459,10 @@ pub fn clipboard_text() -> io::Result<String> {
         return Err(io::Error::last_os_error());
     }
     let _clipboard = Clipboard;
+    read_open_clipboard()
+}
+
+fn read_open_clipboard() -> io::Result<String> {
     let data = unsafe { GetClipboardData(UNICODE_TEXT) };
     if data.is_null() {
         return Ok(String::new());
@@ -303,101 +476,4 @@ pub fn clipboard_text() -> io::Result<String> {
     let text = from_wide(&text[..text.iter().position(|&unit| unit == 0).unwrap_or(length)]);
     unsafe { GlobalUnlock(data) };
     Ok(text)
-}
-
-struct Ole;
-impl Drop for Ole {
-    fn drop(&mut self) {
-        unsafe { OleUninitialize() };
-    }
-}
-
-fn copy_selection(
-    process: u32,
-    terminal: bool,
-    deadline: Instant,
-    active: &impl Fn() -> bool,
-) -> Result<String, SelectionError> {
-    if unsafe { OleInitialize(None) }.is_err() {
-        return Ok(String::new());
-    }
-    let _ole = Ole;
-    let before = unsafe { GetClipboardSequenceNumber() };
-    let Ok(saved) = (unsafe { OleGetClipboard() }) else {
-        return Ok(String::new());
-    };
-    let modifier_held = || {
-        [VK_MENU, VK_CONTROL, VK_SHIFT, VK_LWIN, VK_RWIN]
-            .into_iter()
-            .any(|key| unsafe { GetAsyncKeyState(i32::from(key)) < 0 })
-    };
-    while active() && modifier_held() {
-        std::thread::sleep(Duration::from_millis(5));
-    }
-    if !active() || unsafe { GetClipboardSequenceNumber() } != before {
-        return Ok(String::new());
-    }
-    let key = if terminal { VK_INSERT } else { VK_C };
-    let input = |key, flags| INPUT {
-        r#type: INPUT_KEYBOARD,
-        Anonymous: INPUT_0 {
-            ki: KEYBDINPUT {
-                wVk: key,
-                dwFlags: flags,
-                ..Default::default()
-            },
-        },
-    };
-    let events = [
-        input(VK_CONTROL, 0),
-        input(key, 0),
-        input(key, KEYEVENTF_KEYUP),
-        input(VK_CONTROL, KEYEVENTF_KEYUP),
-    ];
-    let sent = unsafe {
-        SendInput(
-            events.len() as u32,
-            events.as_ptr(),
-            size_of::<INPUT>() as i32,
-        )
-    };
-    if sent == 0 {
-        return Ok(String::new());
-    }
-    if sent < events.len() as u32 {
-        let release = [
-            input(key, KEYEVENTF_KEYUP),
-            input(VK_CONTROL, KEYEVENTF_KEYUP),
-        ];
-        unsafe {
-            SendInput(
-                release.len() as u32,
-                release.as_ptr(),
-                size_of::<INPUT>() as i32,
-            )
-        };
-    }
-    let until = deadline.min(Instant::now() + Duration::from_millis(250));
-    loop {
-        let sequence = unsafe { GetClipboardSequenceNumber() };
-        if sequence != before {
-            let mut owner = 0;
-            unsafe { GetWindowThreadProcessId(GetClipboardOwner(), &mut owner) };
-            if owner != process {
-                return Ok(String::new());
-            }
-            if let Ok(text) = clipboard_text() {
-                if unsafe { GetClipboardSequenceNumber() } != sequence {
-                    return Ok(String::new());
-                }
-                unsafe { OleSetClipboard(&saved).and_then(|()| OleFlushClipboard()) }
-                    .map_err(|_| SelectionError::ClipboardRestore)?;
-                return Ok(if active() { text } else { String::new() });
-            }
-        }
-        if Instant::now() >= until {
-            return Ok(String::new());
-        }
-        std::thread::sleep(Duration::from_millis(5));
-    }
 }

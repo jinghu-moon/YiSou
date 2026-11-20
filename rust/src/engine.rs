@@ -152,11 +152,6 @@ impl Engine {
     pub fn normalize(&mut self) -> Result<(), EngineError> {
         self.name = trim(&self.name).into();
         self.url = trim(&self.url).into();
-        let alias = trim(&self.alias);
-        self.alias = alias
-            .strip_prefix('#')
-            .unwrap_or(alias)
-            .to_ascii_lowercase();
         if self.name.is_empty()
             || self.name.encode_utf16().count() > 48
             || self.name.chars().any(|ch| ch < ' ' || ch == '\u{7f}')
@@ -166,15 +161,7 @@ impl Engine {
         if !is_search_template(&self.url) {
             return Err(EngineError::Url);
         }
-        if !self.alias.is_empty()
-            && (self.alias.len() > 16
-                || !self.alias.as_bytes()[0].is_ascii_lowercase()
-                || !self.alias.bytes().all(|ch| {
-                    ch.is_ascii_lowercase() || ch.is_ascii_digit() || b"-_".contains(&ch)
-                }))
-        {
-            return Err(EngineError::Alias);
-        }
+        self.alias = normalize_alias(&self.alias)?;
         if self.color > 0x00ff_ffff
             || match &self.icon {
                 Icon::Default => false,
@@ -192,6 +179,24 @@ impl Engine {
         }
         Ok(())
     }
+}
+
+pub(crate) fn normalize_alias(alias: &str) -> Result<String, EngineError> {
+    let alias = trim(alias);
+    let alias = alias
+        .strip_prefix('#')
+        .unwrap_or(alias)
+        .to_ascii_lowercase();
+    if !alias.is_empty()
+        && (alias.len() > 16
+            || !alias.as_bytes()[0].is_ascii_lowercase()
+            || !alias
+                .bytes()
+                .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || b"-_".contains(&ch)))
+    {
+        return Err(EngineError::Alias);
+    }
+    Ok(alias)
 }
 
 pub fn alias_prefix(input: &str) -> Option<(&str, &str)> {
