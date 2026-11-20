@@ -26,7 +26,7 @@ Rust 重构分支为 `refactor/rust`，从本地 `main` 的 `6e3054a` 分出。�
 | F12 | 外观与语言 | 搜索字体可用默认、系统字体或本地字体文件，可预览和恢复。引擎网格可切换显示名称。语言支持跟随系统、中文和英文，修改语言后重启应用。 |
 | F13 | 多显示器与输入 | 搜索框按目标显示器放置，可拖动并按显示器记忆位置。窗口采用 Per-Monitor DPI Awareness V2。支持 IME 组合输入、键盘焦点、菜单导航和关闭后的焦点返回。 |
 
-代码入口见 [启动](../src/main.cpp)、[业务模型](../src/core/application.cpp)、[搜索窗口](../src/ui/search_window.cpp)、[设置](../src/ui/settings.cpp)、[快捷键](../src/platform/shortcut.cpp)、[选区](../src/platform/selection.cpp)、[浏览器](../src/platform/browser.cpp)、[配置](../src/platform/config.cpp)、[Windows 服务](../src/platform/windows.cpp)和 [本地化文案](../src/platform/strings.inc)。
+代码入口见 [启动](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/main.cpp)、[业务模型](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/core/application.cpp)、[搜索窗口](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/ui/search_window.cpp)、[设置](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/ui/settings.cpp)、[快捷键](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/platform/shortcut.cpp)、[选区](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/platform/selection.cpp)、[浏览器](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/platform/browser.cpp)、[配置](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/platform/config.cpp)、[Windows 服务](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/platform/windows.cpp)和 [本地化文案](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/platform/strings.inc)。
 
 ### 搜索和数据规则
 
@@ -36,7 +36,7 @@ Rust 重构分支为 `refactor/rust`，从本地 `main` 的 `6e3054a` 分出。�
 - 全量导入解析并验证后写入活动配置。仅引擎导入按 ID 用导入记录替换同名记录，导入顺序在前，保留其余引擎。置顶按导入顺序在前，追加已有且未重复的项目。验证失败或写入失败时检查活动配置仍可读。涉及配置位置或语言变化的流程，检查重启后实际读取的位置和语言。
 - 选区读取上限为 2048 个 UTF-16 码元。双 Alt 路径预算约 350 ms，允许复制回退的路径约 850 ms。验证超时、前台变化、后一次调用取消前一次、选区为空、剪贴板被其他应用更新和恢复失败等情况。过期结果不能启动浏览器。
 
-规则定义见 [数据模型和限制](../src/core/application.h)、[业务校验](../src/core/application.cpp)、[配置读写](../src/platform/config.cpp)和 [选区读取](../src/platform/selection.cpp)。
+规则定义见 [数据模型和限制](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/core/application.h)、[业务校验](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/core/application.cpp)、[配置读写](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/platform/config.cpp)和 [选区读取](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/platform/selection.cpp)。
 
 ## Rust 实施顺序
 
@@ -70,7 +70,7 @@ Rust 重构分支为 `refactor/rust`，从本地 `main` 的 `6e3054a` 分出。�
 
 | 组别 | 升级前 | Rust 验收 |
 | --- | --- | --- |
-| 业务 | 跑 `YiSou.Core` 并保留搜索用例 | 将 [搜索用例](../tests/search_cases.h) 用于 Rust，比较 URL、引擎选择、历史和错误结果。新增功能补充正向、边界及失败用例。 |
+| 业务 | 跑 `YiSou.Core` 并保留搜索用例 | 将 [搜索用例](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/tests/search_cases.h) 用于 Rust，比较 URL、引擎选择、历史和错误结果。新增功能补充正向、边界及失败用例。 |
 | Windows 服务 | 跑 `YiSou.Platform`，保存测试配置 | 检查快捷键冲突、配置原子写、完整和仅引擎导入导出、无效路径、浏览器选择、选区取消和剪贴板恢复。 |
 | 窗口 | 跑 `YiSou.Windows`，采集常规与失败状态 | 检查启动、托盘、显示和关闭、设置页、引擎切换、链接提示、键盘及 IME。分别验证模拟 DPI 消息和真实跨屏拖动。 |
 | 系统实机 | 记录 Explorer、浏览器、终端与编辑器样本，以及 Windows DPI 和输入法 | 在同版本应用上跑划词、剪贴板、Explorer 重启、登录自启动、中文输入和跨屏。记录系统及第三方应用版本。 |
@@ -80,7 +80,7 @@ Rust 重构分支为 `refactor/rust`，从本地 `main` 的 `6e3054a` 分出。�
 
 ### 性能基线与采样
 
-`ctest --test-dir build/svg-before -C Release --output-on-failure` 已通过 `YiSou.Core`、`YiSou.Platform` 和 `YiSou.Windows`。合并前再对 `build/svg-after` 构建 Release 并运行 CTest，四项全部通过，新增项为 `YiSou.SvgFilter`。对应源码见 [业务测试](../tests/core_tests.cpp)、[平台测试](../tests/platform_tests.cpp)和 [窗口测试](../tests/window_tests.cpp)。
+`ctest --test-dir build/svg-before -C Release --output-on-failure` 已通过 `YiSou.Core`、`YiSou.Platform` 和 `YiSou.Windows`。合并前再对 `build/svg-after` 构建 Release 并运行 CTest，四项全部通过，新增项为 `YiSou.SvgFilter`。对应源码见 [业务测试](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/tests/core_tests.cpp)、[平台测试](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/tests/platform_tests.cpp)和 [窗口测试](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/tests/window_tests.cpp)。
 
 | 指标 | 引入 resvg 前 `d133c49` | Rust 迁移前 `6e3054a` |
 | --- | ---: | ---: |
@@ -93,7 +93,7 @@ Rust 重构分支为 `refactor/rust`，从本地 `main` 的 `6e3054a` 分出。�
 
 ### 当前 Rust 验证记录
 
-使用 `cargo test --locked --release --manifest-path rust/Cargo.toml --target-dir build/rust` 验证。测试覆盖 C++ 查询基准、URL 边界、别名与失败重试、配置保存失败与导入导出、选择请求取消、双 Alt 和时间回绕、内置图标和曲线、独立配置路径、Windows 单实例、浏览器枚举及热键冲突。图标模块直接复用 `yisou_svg` 的纯 Rust 接口。选择用户数据后端为版本化 JSON，迁移期目录为 `%LOCALAPPDATA%\YiSouRust`。
+从仓库根目录运行 `cargo test --locked --workspace`，Full 版增加 `--features ocr`。测试覆盖 C++ 查询基准、URL 边界、别名与失败重试、配置保存失败与导入导出、选择请求取消、双 Alt 和时间回绕、内置图标和曲线、独立配置路径、Windows 单实例、浏览器枚举及热键冲突。图标由 `yisou_svg` 渲染。配置使用版本化 JSON，默认目录为 `%LOCALAPPDATA%\YiSouRust`。
 
 原生窗口保留现有底层与消费层。[`platform`](../rust/src/platform.rs) 负责 Windows 服务，[应用层](../rust/src/application.rs) 负责搜索、引擎、配置与历史。窗口入口只负责初始化、单实例唤醒和消息循环。搜索窗口、引擎弹窗、七页设置、托盘、划词任务和共享绘制各自放在 [原生窗口目录](../rust/src/native/)。
 

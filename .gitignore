@@ -1,11 +1,11 @@
 /build/
+/target/
 /rust/target/
 /refer/
 /.spec-workflow/
 /.vs/
 /assets/fonts/HarmonyOS_SansSC_Regular.ttf
 /settings.ini
-/CMakeUserPresets.json
 __pycache__/
 *.pyc
 Thumbs.db

@@ -150,7 +150,7 @@ Full 的「设置 → 快捷键 → OCR 搜索」提供 ModelScope `v3.9.1` 的�
 启用 `ocr-ui-test` 后运行 `native_ui` 测试可检查桌面合成像素。测试构建允许屏幕 DC 观察边框，并通过隐藏遮罩的路径采集 OCR 截图。
 
 ```powershell
-cargo build --locked --release --manifest-path rust/Cargo.toml --target-dir build/rust-native --features ocr --bin YiSou --example ocr_bench
+cargo build --locked --release --target-dir build/rust-native --features ocr --bin YiSou --example ocr_bench
 ./tools/new-ocr-bench-fixtures.ps1
 $modelRoot = 'D:/100_Projects/110_Daily/A-Crate/Rapid-OCR-RS/models/text'
 & ./build/rust-native/release/examples/ocr_bench.exe $modelRoot tiny build/ocr-fixtures/manifest.json

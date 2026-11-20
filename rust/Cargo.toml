@@ -32,11 +32,11 @@ serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 tempfile = "3.27.0"
 thiserror = "2.0.21"
-yisou_svg = { path = "../src/svg" }
+yisou_svg = { path = "svg" }
 
 [build-dependencies]
 miniz_oxide = "0.8.9"
-yisou_svg = { path = "../src/svg" }
+yisou_svg = { path = "svg" }
 
 [target.'cfg(windows)'.dependencies]
 rapid-structure-rs = { git = "https://github.com/jinghu-moon/rapid-structure-rs.git", rev = "8a485500dd8a42f1a5a0a2393646ae785fb024e8", default-features = false, features = ["ort-runtime"], optional = true }
@@ -80,8 +80,3 @@ windows-sys = { version = "0.61.2", features = [
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
 ] }
-
-[profile.release]
-codegen-units = 1
-lto = "thin"
-strip = "symbols"

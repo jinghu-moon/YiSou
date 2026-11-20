@@ -1,21 +1,24 @@
 # 易搜 YiSou
 
-易搜是一个轻量的 Windows 11 桌面搜索工具，支持全局快捷键、划词搜索、剪贴板搜索、自定义搜索引擎和浏览器。界面由 C++、Win32、Direct2D 和 DirectWrite 实现。
+易搜是一个轻量的 Windows 11 桌面搜索工具，支持全局快捷键、划词搜索、剪贴板搜索、自定义搜索引擎和浏览器。应用使用 Rust、Win32、Direct2D 和 DirectWrite。
 
 ## 构建与测试
 
-使用 Visual Studio 2022 的「使用 C++ 的桌面开发」工作负载、Windows SDK、CMake 3.20 或以上版本，以及 Rust stable 的 MSVC 工具链。构建时 Cargo 会按锁文件编译 resvg 静态库。在仓库根目录运行以下命令。
+安装 Rust stable 的 x64 MSVC 工具链、Visual Studio Build Tools 的 MSVC 链接器和 Windows SDK。在仓库根目录运行以下命令。
 
 ```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64
-cmake --build build --config Release
-ctest --test-dir build -C Release --output-on-failure
-.\build\Release\YiSou.exe
+.\tools\build-rust-editions.ps1
+.\build\editions\full\YiSou.exe
 ```
 
-窗口测试默认使用 Windows 系统字体。如果本地已有 HarmonyOS Sans SC Regular，可将其放在 `assets/fonts/HarmonyOS_SansSC_Regular.ttf`，窗口测试会额外验证自定义字体的加载与恢复。
+Full 版提供截图 OCR。模型由用户在设置页指定，下载入口也在同一页。Lite 版位于 `build/editions/lite/YiSou.exe`，包含核心搜索功能。两版共用 JSON 配置，默认目录为 `%LOCALAPPDATA%\YiSouRust`。
 
-运行 `.\build\Release\YiSou.exe --icon-preview` 可以查看 Direct2D SVG、resvg 16× 和 Cairo 参考图的原尺寸对比。内置和自定义 SVG 使用同一套 resvg 渲染流程，支持静态图形和内嵌位图，文字图标可先将字形转为路径。
+退出运行中的易搜后，可以在 Windows 桌面会话验证两个版本。
+
+```powershell
+cargo test --locked --workspace --no-default-features
+cargo test --locked --workspace --features ocr
+```
 
 ## 许可证
 

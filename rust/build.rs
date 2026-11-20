@@ -67,9 +67,9 @@ fn main() {
 }
 
 fn write_settings_translations(destination: &std::path::Path) {
-    let source = "../src/platform/strings.inc";
+    let source = "strings.inc";
     println!("cargo:rerun-if-changed={source}");
-    let strings = fs::read_to_string(source).expect("read shared UI strings");
+    let strings = fs::read_to_string(source).expect("read settings translations");
     let mut translations = std::collections::BTreeMap::new();
     for line in strings.lines() {
         let Some((_, values)) = line.split_once(", L\"") else {

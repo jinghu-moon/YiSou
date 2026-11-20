@@ -1,0 +1,10 @@
+[workspace]
+members = ["rust", "rust/svg"]
+default-members = ["rust"]
+exclude = ["rust/prototypes/nsh"]
+resolver = "3"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+strip = "symbols"

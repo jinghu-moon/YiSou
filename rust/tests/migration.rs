@@ -91,7 +91,7 @@ fn launch_and_close_route_owned_preferences() {
 
 #[test]
 fn cpp_search_cases_and_url_boundaries() {
-    // Keep the inputs and expected URLs in sync with tests/search_cases.h.
+    // Preserve the C++ baseline's inputs and expected URLs.
     let engines = built_in_engines();
     let cases = [
         (0, " \t\r\n", ""),

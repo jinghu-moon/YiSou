@@ -1,5 +1,7 @@
 # 易搜 UI 设计语言
 
+前五节记录 C++ 版的设计基线。Rust 版的设置交互见 [设置界面设计](05-settings-interaction-design.md)。
+
 本文以 C++ 基线 `6e3054a` 的实现为依据。数值默认以 DIP 表示，典型窗口和控件的物理尺寸随目标显示器 DPI 变化。实现时按像素落点检查图标、细边和文字，验收时使用实际窗口截图。
 
 ## 外观与层级
@@ -19,7 +21,7 @@
 | 搜索底色、正文和辅助文字 | `#FCFDFF`、`#1A2029`、`#536273` |
 | 通用圆角 | 卡片 8，控件 6，网格外轮廓 12 |
 
-设置使用系统消息字体，正文 14、说明 12、标题 30 半粗。搜索默认优先 Microsoft YaHei UI，再尝试 Segoe UI。输入字号 16。引擎网格名称 13 半粗，别名 11 常规。语言可在简体中文、英文和跟随系统间切换。设置按钮宽度应能容纳两种语言。网格长名称用省略显示，同时保留完整名称供提示和键盘辅助识别。 [共用视觉数值](../src/ui/visual_style.h) · [设置排版](../src/ui/settings.cpp) · [菜单绘制](../src/ui/engine_flyout.cpp)
+设置使用系统消息字体，正文 14、说明 12、标题 30 半粗。搜索默认优先 Microsoft YaHei UI，再尝试 Segoe UI。输入字号 16。引擎网格名称 13 半粗，别名 11 常规。语言可在简体中文、英文和跟随系统间切换。设置按钮宽度应能容纳两种语言。网格长名称用省略显示，同时保留完整名称供提示和键盘辅助识别。 [共用视觉数值](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/ui/visual_style.h) · [设置排版](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/ui/settings.cpp) · [菜单绘制](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/ui/engine_flyout.cpp)
 
 ## 浮动搜索框
 
@@ -35,7 +37,7 @@
 - 默认放在目标显示器工作区的水平中心、垂直约三分之一处。非交互区可拖动，位置按显示器记忆。显示器工作区和 DPI 变化后检查窗口位置、文字输入区、点击命中区和菜单锚点。
 - 打开时焦点进入输入框。`Enter` 搜索，合法链接可用 `Ctrl+Enter` 打开，`Ctrl+,` 进入设置。空输入 `↑` 恢复上次查询。`Tab` 在正常状态移动到引擎按钮，别名提示打开时先遵循提示的操作。IME 组合期间保留输入法对候选和确认键的控制。需要验收空输入、选区预填、最近查询恢复、临时引擎、失败重试及焦点恢复。
 
-[搜索框实现](../src/ui/search_window.cpp)
+[搜索框实现](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/ui/search_window.cpp)
 
 ## 引擎菜单与别名建议
 
@@ -48,7 +50,7 @@
 | 添加入口 | 网格末尾的加号进入设置的搜索引擎页并打开编辑器。 |
 | 别名建议 | 面板宽 352，列表行高 34，图标 24。行内显示完整引擎名和 `#alias`，选中项有勾形标记，面板显示确认提示。 |
 
-菜单用方向键、Tab 和 Home/End 导航，用 Enter 或空格确认，Esc 关闭。别名建议由输入的 `#` 开头触发，支持方向键选中及 Tab 补全。搜索框仍持有输入焦点。点选引擎后返回输入框，当前查询使用所选引擎。菜单已有系统高对比配色分支，复测需要检查高对比下的图标、文字和焦点边框。 [飞出菜单实现](../src/ui/engine_flyout.cpp)
+菜单用方向键、Tab 和 Home/End 导航，用 Enter 或空格确认，Esc 关闭。别名建议由输入的 `#` 开头触发，支持方向键选中及 Tab 补全。搜索框仍持有输入焦点。点选引擎后返回输入框，当前查询使用所选引擎。菜单已有系统高对比配色分支，复测需要检查高对比下的图标、文字和焦点边框。 [飞出菜单实现](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/ui/engine_flyout.cpp)
 
 ## 设置窗口
 
@@ -64,7 +66,7 @@
 | 搜索历史 | 记录开关、关键词和来源筛选。列表行高 104，每页 24 项，带空状态和翻页。选中记录后支持再次搜索与删除。 |
 | 配置文件 | 当前路径、选择配置位置、完整配置导入导出、仅引擎导入导出。文件选择、字体、颜色等原生对话框遵循 Windows 键盘和焦点行为。 |
 
-Esc 优先取消快捷键录制、折叠浏览器选择区、关闭打开的引擎编辑区，再关闭设置窗口。托盘菜单使用系统菜单，提供打开搜索框、设置和退出。 [设置窗口实现](../src/ui/settings.cpp) · [托盘实现](../src/ui/search_window.cpp)
+Esc 优先取消快捷键录制、折叠浏览器选择区、关闭打开的引擎编辑区，再关闭设置窗口。托盘菜单使用系统菜单，提供打开搜索框、设置和退出。 [设置窗口实现](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/ui/settings.cpp) · [托盘实现](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/ui/search_window.cpp)
 
 ## 图标与视觉验收
 
@@ -73,7 +75,7 @@ Esc 优先取消快捷键录制、折叠浏览器选择区、关闭打开的引�
 - 截图使用两版相同工作区、DPI、语言、引擎顺序、配置和调色条件。采集搜索初始、正常输入、链接、失败、别名建议、带字和无字网格、滚动末尾、设置七页与错误状态。记录屏幕缩放和 Acrylic 是否启用。
 - 实机验证跨屏、IME 候选、键盘导航、长名称、路径过长、空历史、列表满页和保存异常。图标测试窗口验证资源和算法，产品窗口验证显示结果和交互。
 
-[图标路径](../src/ui/engine_icons.cpp) · [图标对比窗口](../src/ui/icon_preview.cpp) · [升级验收](02-rust-migration-work-plan.md)
+[图标路径](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/ui/engine_icons.cpp) · [图标对比窗口](https://github.com/jinghu-moon/YiSou/blob/d133c492d67e568bf224e4a591596da210b88b6e/src/ui/icon_preview.cpp) · [升级验收](02-rust-migration-work-plan.md)
 
 ## Rust UI 的性能与动效
 

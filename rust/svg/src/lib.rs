@@ -1,6 +1,6 @@
 use resvg::tiny_skia::{Pixmap, Transform};
 use resvg::usvg::{roxmltree, ImageHrefResolver, Options, Tree};
-use std::{borrow::Cow, panic::catch_unwind, slice, str};
+use std::{borrow::Cow, str};
 
 const SAMPLES: usize = 16;
 const SVG_NS: &str = "http://www.w3.org/2000/svg";
@@ -116,37 +116,6 @@ pub fn render(svg: &[u8], size: u32, color: Option<u32>) -> Option<Vec<u32>> {
     let mut pixels = vec![0; size * size];
     paint(svg, size, color.filter(|color| *color <= 0x00ff_ffff), &mut pixels)?;
     Some(pixels)
-}
-
-/// Rasterize self-contained UTF-8 SVG to top-down premultiplied BGRA.
-/// The caller owns both buffers and guarantees they are readable or writable
-/// for the declared lengths and do not overlap.
-#[no_mangle]
-pub unsafe extern "C" fn yisou_svg_render(
-    svg: *const u8,
-    length: usize,
-    size: u32,
-    rgb: u32,
-    output: *mut u32,
-    count: usize,
-) -> u32 {
-    let size = size as usize;
-    if svg.is_null()
-        || output.is_null()
-        || length == 0
-        || length > 64 * 1024
-        || !(1..=256).contains(&size)
-        || count != size * size
-    {
-        return 0;
-    }
-    let color = (rgb <= 0x00ff_ffff).then_some(rgb);
-    let render = || {
-        let svg = unsafe { slice::from_raw_parts(svg, length) };
-        let output = unsafe { slice::from_raw_parts_mut(output, count) };
-        paint(svg, size, color, output)
-    };
-    u32::from(matches!(catch_unwind(render), Ok(Some(()))))
 }
 
 #[cfg(test)]

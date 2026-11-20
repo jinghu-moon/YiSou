@@ -6,7 +6,7 @@ $output = Join-Path $repo "build/editions"
 foreach ($edition in "lite", "full") {
     $options = @(
         "build", "--locked", "--release", "--no-default-features",
-        "--manifest-path", (Join-Path $repo "rust/Cargo.toml"),
+        "--manifest-path", (Join-Path $repo "Cargo.toml"),
         "--target-dir", $target, "--bin", "YiSou"
     )
     if ($edition -eq "full") {
