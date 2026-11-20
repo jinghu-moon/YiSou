@@ -1,0 +1,1516 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>易搜设置 · 交互原型</title>
+<style>
+  :root {
+    font: 14px/1.5 "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+    color: #1a1e26; background: #e7ebf0; color-scheme: light;
+    --surface: #f1f3f7; --card: #fafbfd; --edge: #dce1e9; --line: #e5e9ef;
+    --muted: #545e6f; --accent: #005fb8; --tint: #e6eef9; --hover: #edf1f7;
+    --danger: #9f2e2a; --success: #216749; --motion: 130ms cubic-bezier(.2,.75,.25,1);
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; height: 100dvh; overflow: hidden; display: grid; place-items: center; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: default; opacity: .48; }
+  button, a, input, select { -webkit-tap-highlight-color: transparent; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+  h1, h2, p { margin: 0; }
+  h1 { font-size: 29px; line-height: 1.28; font-weight: 650; }
+  h2 { font-size: 15px; font-weight: 650; }
+  .subtle { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .icon { width: 18px; height: 18px; flex: none; vertical-align: middle; }
+  .prototype { width: min(900px, calc(100vw - 36px)); max-width: 100%; display: grid; gap: 9px; }
+  .prototype[data-size=compact] { width: min(667px, calc(100vw - 24px)); }
+  .prototype[data-size=large] { width: min(1140px, calc(100vw - 36px)); }
+  .preview-bar { display: flex; align-items: center; justify-content: flex-end; gap: 9px; font-size: 12px; color: var(--muted); min-width: 0; }
+  .segment { display: inline-flex; align-items: stretch; padding: 2px; gap: 2px; border: 1px solid var(--edge); border-radius: 7px; background: #e9edf3; }
+  .segment button { padding: 3px 10px; min-height: 27px; border: 1px solid transparent; border-radius: 5px; background: transparent; white-space: nowrap; }
+  .segment button:hover { background: #f3f6fa; }
+  .segment button[aria-pressed=true] { border-color: var(--edge); color: var(--accent); background: white; box-shadow: 0 1px 2px #1c284411; }
+  .window { height: min(580px, calc(100dvh - 64px)); min-height: 0; overflow: hidden; display: grid; grid-template-rows: 42px minmax(0,1fr); border-radius: 8px; border: 1px solid #cbd2dc; background: var(--surface); box-shadow: 0 16px 44px #34425324, 0 2px 5px #34425316; }
+  [data-size=compact] .window { height: min(345px, calc(100dvh - 58px)); }
+  [data-size=large] .window { height: min(760px, calc(100dvh - 64px)); }
+  .titlebar { display: flex; align-items: center; gap: 8px; padding: 0 10px 0 14px; border-bottom: 1px solid var(--line); font-size: 12px; }
+  .appmark { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 5px; color: white; background: var(--accent); }
+  .appmark .icon { width: 14px; height: 14px; }
+  .titlebar .tool { margin-left: auto; }
+  .body { display: grid; grid-template-columns: 184px minmax(0,1fr); min-height: 0; }
+  .rail { display: flex; flex-direction: column; gap: 3px; overflow: auto; scrollbar-width: thin; padding: 16px 11px 12px; border-right: 1px solid var(--edge); }
+  .nav { position: relative; display: flex; align-items: center; gap: 10px; min-height: 39px; flex-shrink: 0; padding: 6px 11px; text-align: left; }
+  .nav .icon { color: var(--muted); }
+  .nav[aria-current=page] { background: var(--tint); color: #154678; font-weight: 650; }
+  .nav[aria-current=page] .icon { color: var(--accent); }
+  .nav[aria-current=page]::before { content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 17px; background: var(--accent); border-radius: 3px; }
+  .nav[data-divider] { margin-top: 10px; }
+  .content { min-width: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; scrollbar-width: thin; background: #f7f8fa; }
+  .view { max-width: 740px; padding: 25px 26px 32px; margin: 0 auto; }
+  .page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 19px; }
+  .page-head > div { min-width: 0; }
+  section + section { margin-top: 19px; }
+  .section-title { margin-bottom: 7px; }
+  .group { border: 1px solid var(--edge); border-radius: 8px; background: var(--card); }
+  .row { min-height: 58px; display: flex; align-items: center; gap: 12px; padding: 10px 13px; }
+  .row + .row, .inset + .row, .row + .inset, .inset + .inset { border-top: 1px solid var(--line); }
+  .row > .icon { color: var(--muted); width: 19px; height: 19px; }
+  .copy { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+  .label { font-weight: 600; }
+  .copy .subtle { margin-top: 2px; }
+  .actions, .toolbar, .keyset, .inline { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .actions, .inline { flex-wrap: wrap; }
+  .actions { justify-content: flex-end; }
+  .toolbar { justify-content: space-between; margin-bottom: 12px; }
+  .tool, .button, .nav { border-radius: 6px; border: 1px solid transparent; background: transparent; transition: background var(--motion), color var(--motion), border-color var(--motion); }
+  .button { min-height: 33px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 5px 10px; border-color: var(--edge); background: #fff; }
+  .button:hover:not(:disabled), .tool:hover:not(:disabled), .nav:hover:not([aria-current=page]) { background: var(--hover); }
+  .button.accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .button.accent:hover:not(:disabled) { background: #07529a; }
+  .button.danger { color: var(--danger); }
+  .button .icon { width: 15px; height: 15px; }
+  .tool { display: inline-grid; place-items: center; width: 33px; height: 33px; padding: 0; flex: none; }
+  .tool .icon { width: 17px; height: 17px; }
+  .switch { width: 42px; height: 23px; padding: 0; flex: none; position: relative; border-radius: 13px; border: 1px solid #777e8b; background: #fff; transition: background var(--motion), border-color var(--motion); }
+  .switch::after { content: ""; position: absolute; width: 11px; height: 11px; top: 5px; left: 5px; border-radius: 50%; background: #525d70; transition: transform var(--motion), background var(--motion); }
+  .switch[aria-checked=true] { background: var(--accent); border-color: var(--accent); }
+  .switch[aria-checked=true]::after { transform: translateX(19px); background: #fff; }
+  input:not([type=radio],[type=color],[type=file]), select { border: 1px solid #cfd6e0; border-radius: 6px; min-height: 34px; background: #fff; padding: 5px 8px; min-width: 0; max-width: 100%; }
+  input::placeholder { color: #666f7d; }
+  input[aria-invalid=true] { border-color: var(--danger); }
+  input[type=color] { padding: 3px; width: 37px; height: 34px; background: white; border: 1px solid var(--edge); border-radius: 6px; }
+  input[type=radio] { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; flex: none; }
+  .field { display: grid; gap: 5px; min-width: 0; }
+  .field label { font-weight: 600; font-size: 13px; }
+  .field .error:empty { display: none; }
+  .field-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+  .search-field { position: relative; width: min(100%, 310px); }
+  .search-field input { width: 100%; padding-inline-start: 33px !important; }
+  .search-field .icon { position: absolute; pointer-events: none; top: 9px; left: 9px; color: var(--muted); width: 16px; height: 16px; }
+  .inset { padding: 13px; }
+  .stack { display: grid; gap: 12px; }
+  .wide { flex: 1; min-width: 0; }
+  .path { font: 12px/1.55 Consolas, "Microsoft YaHei UI", monospace; overflow-wrap: anywhere; user-select: text; }
+  .error { color: var(--danger); font-size: 12px; overflow-wrap: anywhere; }
+  .ok { color: var(--success); }
+  .plain-link { color: var(--accent); text-decoration: none; }
+  .plain-link:hover { text-decoration: underline; }
+  .brand-icon { width: 22px; height: 22px; object-fit: contain; flex: none; }
+  .custom-icon { display: inline-grid; place-items: center; border-radius: 6px; background: var(--swatch); color: #fff; font-size: 13px; font-weight: 700; }
+  .search-preview { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--edge); border-radius: 8px; padding: 10px 13px; min-height: 49px; background: #fff; font-size: 20px; }
+  .search-preview .brand-icon { width: 20px; height: 20px; }
+  .sample-grid { display: flex; flex-wrap: wrap; gap: 7px; }
+  .sample-tile { display: grid; justify-items: center; align-content: center; gap: 4px; min-width: 67px; min-height: 56px; padding: 6px; border: 1px solid var(--edge); border-radius: 6px; background: #fff; font-size: 12px; }
+  .sample-tile:first-child { border-color: #a8c6e7; background: #f2f7ff; }
+  .sample-grid[data-names=false] .sample-tile { min-width: 45px; min-height: 44px; }
+  .slots { display: flex; flex-wrap: wrap; gap: 6px; }
+  .slot { display: flex; align-items: center; gap: 5px; min-width: 0; min-height: 30px; max-width: 100%; padding: 3px 7px; border: 1px solid var(--line); border-radius: 6px; background: #f7f9fc; font-size: 12px; }
+  .slot span { min-width: 0; overflow-wrap: anywhere; }
+  .slot .brand-icon { width: 15px; height: 15px; font-size: 10px; }
+  kbd { min-height: 22px; padding: 1px 5px; border: 1px solid #d8dfe9; border-bottom-width: 2px; border-radius: 4px; background: #fff; font: 12px/1.5 "Segoe UI", "Microsoft YaHei UI", sans-serif; color: #344254; white-space: nowrap; }
+  .engine-table { margin-top: 13px; }
+  .engine-line { display: grid; grid-template-columns: minmax(0,1.45fr) minmax(55px,.6fr) minmax(85px,.8fr) 33px; gap: 9px; min-height: 48px; align-items: center; padding: 6px 11px 6px 13px; }
+  .engine-line + .engine-line { border-top: 1px solid var(--line); }
+  .engine-line:focus-within, .engine-line:not(.columns):hover { background: #f3f6fa; }
+  .engine-line.columns { min-height: 34px; font-size: 12px; color: var(--muted); }
+  .engine-name { min-width: 0; display: flex; align-items: center; gap: 9px; }
+  .engine-name strong, .alias { min-width: 0; overflow-wrap: anywhere; }
+  .states { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; color: var(--accent); font-size: 12px; }
+  .states .icon { width: 14px; height: 14px; }
+  .form-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding-top: 4px; }
+  .keyset { gap: 4px; flex-wrap: wrap; }
+  .key-capture { min-height: 34px; flex: 1; padding: 5px 8px; border: 1px dashed #92aac4; border-radius: 6px; background: #f0f6fd; }
+  .record-box { min-height: 100px; }
+  .record-box .error { min-height: 18px; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--edge); background: #f2f5fa; border-radius: 5px; padding: 2px 3px 2px 6px; font-size: 12px; }
+  .chip .tool { width: 22px; height: 22px; }
+  .chip .icon { width: 13px; height: 13px; }
+  .radio-row { cursor: pointer; }
+  .radio-row:hover { background: var(--hover); }
+  .radio-row:has(input:checked) { background: #edf3fb; }
+  .history-row { min-height: 58px; }
+  .history-row:focus-within { background: #f3f6fa; }
+  .history-row .copy { overflow-wrap: anywhere; }
+  .pagination { display: flex; align-items: center; justify-content: space-between; gap: 7px; margin-top: 9px; }
+  .empty { text-align: center; padding: 30px 12px; display: grid; justify-items: center; gap: 7px; }
+  .empty > .icon { width: 24px; height: 24px; color: #6c7e92; }
+  .status-line { display: flex; align-items: center; gap: 7px; min-height: 41px; font-size: 13px; }
+  .status-line .icon { width: 16px; height: 16px; }
+  .spin { animation: spin 750ms linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .download-list { display: flex; flex-wrap: wrap; gap: 10px 16px; }
+  .download-list .icon { width: 13px; height: 13px; margin-left: 3px; }
+  .feedback { min-height: 20px; }
+  .menu { position: fixed; z-index: 3; display: grid; gap: 2px; padding: 4px; min-width: 153px; max-height: calc(100dvh - 16px); overflow: auto; border: 1px solid var(--edge); background: #fff; border-radius: 7px; box-shadow: 0 6px 22px #23334c29; animation: reveal var(--motion) both; }
+  .menu button { justify-content: flex-start; border-color: transparent; }
+  dialog { width: min(455px, calc(100vw - 30px)); max-height: calc(100dvh - 30px); margin: auto; padding: 0; border: 1px solid var(--edge); border-radius: 8px; background: var(--card); color: inherit; box-shadow: 0 9px 34px #23334c35; }
+  dialog[open] { animation: reveal var(--motion) both; }
+  dialog::backdrop { background: #17243744; }
+  .dialog-body { display: grid; gap: 12px; padding: 17px; }
+  .dialog-body h2 { font-size: 18px; }
+  .dialog-footer { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; border-top: 1px solid var(--line); padding: 11px 17px; }
+  @keyframes reveal { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  [data-size=compact] .body { grid-template-columns: 147px minmax(0,1fr); }
+  [data-size=compact] .view { padding: 17px 17px 25px; }
+  [data-size=compact] .rail { padding: 7px 8px; gap: 1px; }
+  [data-size=compact] .nav { min-height: 33px; }
+  [data-size=compact] .nav[data-divider] { margin-top: 4px; }
+  @media (max-width: 720px) {
+    .prototype { width: calc(100vw - 18px); }
+    .body, [data-size=compact] .body { grid-template-columns: 138px minmax(0,1fr); }
+    .view { padding: 17px 16px 24px; }
+    .rail { padding: 9px 7px; }
+    .engine-line { grid-template-columns: minmax(0,1.2fr) minmax(43px,.55fr) minmax(54px,.65fr) 33px; gap: 6px; padding-inline: 8px; }
+    .history-row .actions { gap: 2px; }
+  }
+  @media (max-width: 510px) {
+    .prototype { width: calc(100vw - 12px); }
+    .body, [data-size=compact] .body { grid-template-columns: 49px minmax(0,1fr); }
+    .rail, [data-size=compact] .rail { padding: 6px 4px; }
+    .nav { justify-content: center; padding: 5px; min-height: 38px; }
+    .nav span:not(.icon), .preview-label { display: none; }
+    .view, [data-size=compact] .view { padding: 15px 10px 22px; }
+    .field-grid { grid-template-columns: 1fr; }
+    .row { gap: 7px; padding-inline: 8px; }
+    .row.wrap { flex-wrap: wrap; }
+    .row.wrap .actions { width: 100%; justify-content: flex-start; }
+    .row > .icon { width: 16px; height: 16px; }
+    .brand-icon { width: 18px; height: 18px; }
+    .engine-name { gap: 4px; }
+    .engine-line { font-size: 12px; }
+    .button { padding-inline: 7px; }
+    .search-field { width: 100%; }
+    .history-row .repeat-label { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+  @media (forced-colors: active) {
+    .switch[aria-checked=true]::after { transform: translateX(19px); background: Highlight; }
+    .switch::after { forced-color-adjust: none; background: ButtonText; }
+    .nav[aria-current=page], .segment button[aria-pressed=true] { border-color: Highlight; }
+  }
+</style>
+</head>
+<body>
+<div class="prototype" data-size="regular" id="prototype">
+  <div class="preview-bar">
+    <span class="preview-label">原型预览</span>
+    <div class="segment" role="group" aria-label="原型版本">
+      <button type="button" data-edition="full" aria-pressed="true">Full</button>
+      <button type="button" data-edition="lite" aria-pressed="false">Lite</button>
+    </div>
+    <div class="segment" role="group" aria-label="窗口尺寸">
+      <button type="button" data-size-choice="regular" aria-pressed="true" title="900 × 580">标准</button>
+      <button type="button" data-size-choice="compact" aria-pressed="false" title="667 × 345">紧凑</button>
+    </div>
+  </div>
+  <div class="window">
+    <header class="titlebar" id="titlebar"></header>
+    <div class="body">
+      <nav class="rail" id="nav" aria-label="设置页面"></nav>
+      <main class="content" id="content" aria-label="设置内容"></main>
+    </div>
+  </div>
+</div>
+<div class="menu" id="engine-menu" aria-label="搜索引擎操作" hidden></div>
+<dialog id="dialog"></dialog>
+<input type="file" id="local-file" hidden>
+<script>
+"use strict";
+
+// Tabler outline assets and the brand SVGs from assets/icons are embedded for file:// use.
+const glyphs = {
+  "settings": "<path d=\"M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065\" /> <path d=\"M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0\" />",
+  "palette": "<path d=\"M12 21a9 9 0 0 1 0 -18c4.97 0 9 3.582 9 8c0 1.06 -.474 2.078 -1.318 2.828c-.844 .75 -1.989 1.172 -3.182 1.172h-2.5a2 2 0 0 0 -1 3.75a1.3 1.3 0 0 1 -1 2.25\" /> <path d=\"M7.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" /> <path d=\"M11.5 7.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" /> <path d=\"M15.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" />",
+  "search": "<path d=\"M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0\" /> <path d=\"M21 21l-6 -6\" />",
+  "keyboard": "<path d=\"M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8\" /> <path d=\"M6 10l0 .01\" /> <path d=\"M10 10l0 .01\" /> <path d=\"M14 10l0 .01\" /> <path d=\"M18 10l0 .01\" /> <path d=\"M6 14l0 .01\" /> <path d=\"M18 14l0 .01\" /> <path d=\"M10 14l4 .01\" />",
+  "browser": "<path d=\"M4 8h16\" /> <path d=\"M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12\" /> <path d=\"M8 4v4\" />",
+  "history": "<path d=\"M12 8l0 4l2 2\" /> <path d=\"M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5\" />",
+  "scan": "<path d=\"M5 12h14\" /> <path d=\"M3 7v-2a2 2 0 0 1 2 -2h2\" /> <path d=\"M3 17v2a2 2 0 0 0 2 2h2\" /> <path d=\"M17 3h2a2 2 0 0 1 2 2v2\" /> <path d=\"M17 21h2a2 2 0 0 0 2 -2v-2\" />",
+  "file-typography": "<path d=\"M14 3v4a1 1 0 0 0 1 1h4\" /> <path d=\"M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2\" /> <path d=\"M11 18h2\" /> <path d=\"M12 18v-7\" /> <path d=\"M9 12v-1h6v1\" />",
+  "power": "<path d=\"M7 6a7.75 7.75 0 1 0 10 0\" /> <path d=\"M12 4l0 8\" />",
+  "device-desktop": "<path d=\"M3 5a1 1 0 0 1 1 -1h16a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1v-10\" /> <path d=\"M7 20h10\" /> <path d=\"M9 16v4\" /> <path d=\"M15 16v4\" />",
+  "language": "<path d=\"M9 6.371c0 4.418 -2.239 6.629 -5 6.629\" /> <path d=\"M4 6.371h7\" /> <path d=\"M5 9c0 2.144 2.252 3.908 6 4\" /> <path d=\"M12 20l4 -9l4 9\" /> <path d=\"M19.1 18h-6.2\" /> <path d=\"M6.694 3l.793 .582\" />",
+  "typography": "<path d=\"M4 20l3 0\" /> <path d=\"M14 20l7 0\" /> <path d=\"M6.9 15l6.9 0\" /> <path d=\"M10.2 6.3l5.8 13.7\" /> <path d=\"M5 20l6 -16l2 0l7 16\" />",
+  "plus": "<path d=\"M12 5l0 14\" /> <path d=\"M5 12l14 0\" />",
+  "dots": "<path d=\"M4 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" /> <path d=\"M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" /> <path d=\"M18 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" />",
+  "check": "<path d=\"M5 12l5 5l10 -10\" />",
+  "pin": "<path d=\"M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4\" /> <path d=\"M9 15l-4.5 4.5\" /> <path d=\"M14.5 4l5.5 5.5\" />",
+  "arrow-up": "<path d=\"M12 5l0 14\" /> <path d=\"M18 11l-6 -6\" /> <path d=\"M6 11l6 -6\" />",
+  "arrow-down": "<path d=\"M12 5l0 14\" /> <path d=\"M18 13l-6 6\" /> <path d=\"M6 13l6 6\" />",
+  "arrow-left": "<path d=\"M5 12l14 0\" /> <path d=\"M5 12l6 6\" /> <path d=\"M5 12l6 -6\" />",
+  "external-link": "<path d=\"M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6\" /> <path d=\"M11 13l9 -9\" /> <path d=\"M15 4h5v5\" />",
+  "x": "<path d=\"M18 6l-12 12\" /> <path d=\"M6 6l12 12\" />",
+  "trash": "<path d=\"M4 7l16 0\" /> <path d=\"M10 11l0 6\" /> <path d=\"M14 11l0 6\" /> <path d=\"M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12\" /> <path d=\"M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3\" />",
+  "folder": "<path d=\"M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2\" />",
+  "loader-2": "<path d=\"M12 3a9 9 0 1 0 9 9\" />",
+  "circle-check": "<path d=\"M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0\" /> <path d=\"M9 12l2 2l4 -4\" />",
+  "download": "<path d=\"M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2\" /> <path d=\"M7 11l5 5l5 -5\" /> <path d=\"M12 4l0 12\" />",
+  "maximize": "<path d=\"M4 8v-2a2 2 0 0 1 2 -2h2\" /> <path d=\"M4 16v2a2 2 0 0 0 2 2h2\" /> <path d=\"M16 4h2a2 2 0 0 1 2 2v2\" /> <path d=\"M16 20h2a2 2 0 0 0 2 -2v-2\" />",
+  "minimize": "<path d=\"M15 19v-2a2 2 0 0 1 2 -2h2\" /> <path d=\"M15 5v2a2 2 0 0 0 2 2h2\" /> <path d=\"M5 15h2a2 2 0 0 1 2 2v2\" /> <path d=\"M5 9h2a2 2 0 0 0 2 -2v-2\" />",
+};
+const brandSvgs = {
+  "bing": "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iY3VycmVudENvbG9yIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPgogIDx0aXRsZT5NaWNyb3NvZnQgQmluZzwvdGl0bGU+CiAgPHBhdGggZD0iTTQuODQyLjAwNWEuOTY2Ljk2NiAwIDAxLjYwNC4xNDJsMi42MiAxLjgxM2MuMzY5LjI1Ni40OTIuMzUyLjYzNy40OTYuNDcxLjQ3Ljc1MiAxLjA5Ljc5NyAxLjc2NWwuMDA4Ljg0Ny4wMDMgMS40NDEuMDA0IDEzLjAwMi4xNDQtLjA5NCA3LjAxNS00LjM1My4wMTUuMDAzLjAyOS4wMWMtLjM5OC0uMTctLjg5My0uMzM5LTEuNjU1LS41NjZsLS40ODQtLjE0NmMtLjU4NC0uMTgtLjcxLS4yMzgtLjkyMS0uMzhhMi4wMDkgMi4wMDkgMCAwMS0uMzctLjMxMiAyLjE3MiAyLjE3MiAwIDAxLS40MS0uNTkyTDExLjMyIDkuMDYzYy0uMTY2LS40NDQtLjE2Ni0uNDktLjE1Ni0uNjNhLjkyLjkyIDAgMDEuODA2LS44NjRsLjA5NC0uMDFjLjA0NC0uMDA1LjIyLjAyMy4yOS4wNDRsLjA1Mi4wMjFjLjA2LjAyNi4xNi4wNzUuMzEzLjE1NGwzLjYzIDEuOTA4YTYuNjI2IDYuNjI2IDAgMDEzLjI5MiA0LjUzMWMuMTk0Ljk5LjE1OSAyLjAzNy0uMTAyIDMuMDEyLS4yMTYuODA1LS42MzkgMS42OTQtMS4wNTQgMi4yMTNsLS4wOC4wOTktLjA0Ny4wNWMtLjAxLjAxLS4wMTMuMDEtLjAxLjAwMmwuMDQzLS4wNzQtLjA3Mi4xMTRjLS4wMTEuMDMxLS4yMzMuMjgtLjM4LjQyNWwtLjE3LjE2MWMtLjIyLjIwMi0uNDMxLjM2LS44MzIuNjJMMTMuNTQ0IDIzYy0uOTQxLjYtMS44Ni45MTItMi45MTMuOTkyLS4yMy4wMTgtLjg1NC4wMDgtMS4wNzQtLjAxN2E2LjMxIDYuMzEgMCAwMS0xLjY1OC0uNDEyYy0xLjg1NC0uNzM4LTMuMjIzLTIuMjg4LTMuNzA1LTQuMTk1YTguMDc3IDguMDc3IDAgMDEtLjEyMS0uNTdsLS4wNDYtLjMyNWExLjEyMyAxLjEyMyAwIDAxLS4wMTQtLjE2OGwtLjAwNi0uMDI5TDQgMTEuNjE3IDQuMDEuODY2YS45ODEuOTgxIDAgMDEuMDA3LS4xMTEuOTQzLjk0MyAwIDAxLjgyNS0uNzV6IiAvPgo8L3N2Zz4=",
+  "baidu": "PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+QmFpZHU8L3RpdGxlPjxwYXRoIGQ9Ik05LjE1NCAwQzcuNzEgMCA2LjU0IDEuNjU4IDYuNTQgMy43MDdjMCAyLjA1MSAxLjE3MSAzLjcxIDIuNjE1IDMuNzEgMS40NDYgMCAyLjYxNC0xLjY1OSAyLjYxNC0zLjcxQzExLjc2OCAxLjY1OCAxMC42IDAgOS4xNTQgMHptNy4wMjUuNTk0QzE0Ljg2LjU4IDEzLjM0NyAyLjU4OSAxMy4yIDMuOTI3Yy0uMTg3IDEuNzQ1LjI1IDMuNDg3IDIuMTc5IDMuNzM1IDEuOTMzLjI1IDMuMTc1LTEuODA2IDMuNDIyLTMuMzY0LjI1Mi0xLjU1NS0uOTk1LTMuMzY0LTIuMzYyLTMuNjc0YTEuMjE4IDEuMjE4IDAgMCAwLS4yNjEtLjAzek0zLjU4MiA1LjUzNWEyLjgxMSAyLjgxMSAwIDAgMC0uMTU2LjAwOGMtMi4xMTguMTktMi40MjggMy4yNC0yLjQyOCAzLjI0LS4yODcgMS40MS42ODYgNC40MjUgMy4yOTcgMy44NjQgMi42MTctLjU2MSAyLjI2Mi0zLjY4IDIuMTgzLTQuMzYyLS4xMjUtMS4wMTgtMS4yOTItMi43NzMtMi44OTYtMi43NXptMTYuNTM0IDEuNzUzYy0yLjMwOCAwLTIuNjE3IDIuMTE5LTIuNjE3IDMuNjE2IDAgMS40My4xMjEgMy40MjUgMi45ODggMy4zNjIgMi44NjctLjA2MyAyLjU1My0zLjIzOCAyLjU1My0zLjk4OCAwLS43NDUtLjYyLTIuOTktMi45MjQtMi45OXptLTguMjY0IDIuNDc4Yy0xLjQyNC4wMTQtMi43MDguOTI1LTMuMzIzIDEuOTQ3LTEuMTE4IDEuODY4LTIuODYzIDMuMDUtMy4xMTIgMy4zNjMtLjI1LjMwOS0zLjYxIDIuMTE2LTIuODY0IDUuNDIuNzQ2IDMuMzAxIDMuMzY1IDMuMjM3IDMuMzY1IDMuMjM3czEuOTMuMTkgNC4xNzEtLjMxYzIuMjQtLjQ5NSA0LjE3LjEyMyA0LjE3LjEyM3M1LjIzMyAxLjc0OCA2LjY2NS0xLjYxNmMxLjQzLTMuMzY0LS44MDgtNS4xMDktLjgwOC01LjEwOXMtMi45OS0yLjMwNi00LjczNi00Ljc5OGMtMS4wNzItMS42NjUtMi4zNDgtMi4yNjgtMy41MjgtMi4yNTd6bS0yLjIzNCAzLjg0bDEuNTQyLjAyNHY4LjE5N0g3Ljc1OGMtMS40Ny0uMjkxLTIuMDU1LTEuMjkyLTIuMTMtMS40NjItLjA3Mi0uMTczLS40ODgtLjk3Ni0uMjY4LTIuMzQzLjYzNS0yLjA0OSAyLjQ0Ny0yLjE5NiAyLjQ0Ny0yLjE5NmgxLjgxem0zLjk2NCAyLjM5djMuODgxYy4wOTYuNDEzLjYxMi40ODguNjEyLjQ4OGgxLjYxNHYtNC4zNDNoMS42ODl2NS43ODJoLTMuOTE1Yy0xLjUxNy0uMzktMS41OS0xLjQ2NS0xLjU5LTEuNDY1di00LjMxN3ptLTUuNDU4IDEuMTQ3Yy0uNjYuMTk3LS45NzguNzA4LTEuMDUuOTI4LS4wNzYuMjItLjI0Ny43OC0uMSAxLjI2OS4yOTQgMS4wOTUgMS4yNDggMS4xNDQgMS4yNDggMS4xNDRoMS4zN3YtMy4zNHoiLz48L3N2Zz4=",
+  "google": "PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+R29vZ2xlPC90aXRsZT48cGF0aCBkPSJNMTIuNDggMTAuOTJ2My4yOGg3Ljg0Yy0uMjQgMS44NC0uODUzIDMuMTg3LTEuNzg3IDQuMTMzLTEuMTQ3IDEuMTQ3LTIuOTMzIDIuNC02LjA1MyAyLjQtNC44MjcgMC04LjYtMy44OTMtOC42LTguNzJzMy43NzMtOC43MiA4LjYtOC43MmMyLjYgMCA0LjUwNyAxLjAyNyA1LjkwNyAyLjM0N2wyLjMwNy0yLjMwN0MxOC43NDcgMS40NCAxNi4xMzMgMCAxMi40OCAwIDUuODY3IDAgLjMwNyA1LjM4Ny4zMDcgMTJzNS41NiAxMiAxMi4xNzMgMTJjMy41NzMgMCA2LjI2Ny0xLjE3MyA4LjM3My0zLjM2IDIuMTYtMi4xNiAyLjg0LTUuMjEzIDIuODQtNy42NjcgMC0uNzYtLjA1My0xLjQ2Ny0uMTczLTIuMDUzSDEyLjQ4eiIvPjwvc3ZnPg==",
+  "bilibili": "PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+QmlsaWJpbGk8L3RpdGxlPjxwYXRoIGQ9Ik0xNy44MTMgNC42NTNoLjg1NGMxLjUxLjA1NCAyLjc2OS41NzggMy43NzMgMS41NzQgMS4wMDQuOTk1IDEuNTI0IDIuMjQ5IDEuNTYgMy43NnY3LjM2Yy0uMDM2IDEuNTEtLjU1NiAyLjc2OS0xLjU2IDMuNzczcy0yLjI2MiAxLjUyNC0zLjc3MyAxLjU2SDUuMzMzYy0xLjUxLS4wMzYtMi43NjktLjU1Ni0zLjc3My0xLjU2Uy4wMzYgMTguODU4IDAgMTcuMzQ3di03LjM2Yy4wMzYtMS41MTEuNTU2LTIuNzY1IDEuNTYtMy43NiAxLjAwNC0uOTk2IDIuMjYyLTEuNTIgMy43NzMtMS41NzRoLjc3NGwtMS4xNzQtMS4xMmExLjIzNCAxLjIzNCAwIDAgMS0uMzczLS45MDZjMC0uMzU2LjEyNC0uNjU4LjM3My0uOTA3bC4wMjctLjAyN2MuMjY3LS4yNDkuNTczLS4zNzMuOTItLjM3My4zNDcgMCAuNjUzLjEyNC45Mi4zNzNMOS42NTMgNC40NGMuMDcxLjA3MS4xMzQuMTQyLjE4Ny4yMTNoNC4yNjdhLjgzNi44MzYgMCAwIDEgLjE2LS4yMTNsMi44NTMtMi43NDdjLjI2Ny0uMjQ5LjU3My0uMzczLjkyLS4zNzMuMzQ3IDAgLjY2Mi4xNTEuOTI5LjQuMjY3LjI0OS4zOTEuNTUxLjM5MS45MDcgMCAuMzU1LS4xMjQuNjU3LS4zNzMuOTA2ek01LjMzMyA3LjI0Yy0uNzQ2LjAxOC0xLjM3My4yNzYtMS44OC43NzMtLjUwNi40OTgtLjc2OSAxLjEzLS43ODYgMS44OTR2Ny41MmMuMDE3Ljc2NC4yOCAxLjM5NS43ODYgMS44OTMuNTA3LjQ5OCAxLjEzNC43NTYgMS44OC43NzNoMTMuMzM0Yy43NDYtLjAxNyAxLjM3My0uMjc1IDEuODgtLjc3My41MDYtLjQ5OC43NjktMS4xMjkuNzg2LTEuODkzdi03LjUyYy0uMDE3LS43NjUtLjI4LTEuMzk2LS43ODYtMS44OTQtLjUwNy0uNDk3LTEuMTM0LS43NTUtMS44OC0uNzczek04IDExLjEwN2MuMzczIDAgLjY4NC4xMjQuOTMzLjM3My4yNS4yNDkuMzgzLjU2OS40Ljk2djEuMTczYy0uMDE3LjM5MS0uMTUuNzExLS40Ljk2LS4yNDkuMjUtLjU2LjM3NC0uOTMzLjM3NHMtLjY4NC0uMTI1LS45MzMtLjM3NGMtLjI1LS4yNDktLjM4My0uNTY5LS40LS45NlYxMi40NGMwLS4zNzMuMTI5LS42ODkuMzg2LS45NDcuMjU4LS4yNTcuNTc0LS4zODYuOTQ3LS4zODZ6bTggMGMuMzczIDAgLjY4NC4xMjQuOTMzLjM3My4yNS4yNDkuMzgzLjU2OS40Ljk2djEuMTczYy0uMDE3LjM5MS0uMTUuNzExLS40Ljk2LS4yNDkuMjUtLjU2LjM3NC0uOTMzLjM3NHMtLjY4NC0uMTI1LS45MzMtLjM3NGMtLjI1LS4yNDktLjM4My0uNTY5LS40LS45NlYxMi40NGMuMDE3LS4zOTEuMTUtLjcxMS40LS45Ni4yNDktLjI0OS41Ni0uMzczLjkzMy0uMzczWiIvPjwvc3ZnPg==",
+  "youtube": "PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+WW91VHViZTwvdGl0bGU+PHBhdGggZD0iTTIzLjQ5OCA2LjE4NmEzLjAxNiAzLjAxNiAwIDAgMC0yLjEyMi0yLjEzNkMxOS41MDUgMy41NDUgMTIgMy41NDUgMTIgMy41NDVzLTcuNTA1IDAtOS4zNzcuNTA1QTMuMDE3IDMuMDE3IDAgMCAwIC41MDIgNi4xODZDMCA4LjA3IDAgMTIgMCAxMnMwIDMuOTMuNTAyIDUuODE0YTMuMDE2IDMuMDE2IDAgMCAwIDIuMTIyIDIuMTM2YzEuODcxLjUwNSA5LjM3Ni41MDUgOS4zNzYuNTA1czcuNTA1IDAgOS4zNzctLjUwNWEzLjAxNSAzLjAxNSAwIDAgMCAyLjEyMi0yLjEzNkMyNCAxNS45MyAyNCAxMiAyNCAxMnMwLTMuOTMtLjUwMi01LjgxNHpNOS41NDUgMTUuNTY4VjguNDMyTDE1LjgxOCAxMmwtNi4yNzMgMy41Njh6Ii8+PC9zdmc+",
+  "zhihu": "PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+WmhpaHU8L3RpdGxlPjxwYXRoIGQ9Ik01LjcyMSAwQzIuMjUxIDAgMCAyLjI1IDAgNS43MTlWMTguMjhDMCAyMS43NTEgMi4yNTIgMjQgNS43MjEgMjRoMTIuNTZDMjEuNzUxIDI0IDI0IDIxLjc1IDI0IDE4LjI4MVY1LjcyQzI0IDIuMjQ5IDIxLjc1IDAgMTguMjgxIDB6bTEuOTY0IDQuMDc4Yy0uMjcxLjczLS41IDEuNDM0LS42OCAyLjExaDQuNTg3Yy41NDUtLjAwNi40NDUgMS4xNjguNDQ1IDEuMTcxSDkuMzg0YTU4LjEwNCA1OC4xMDQgMCAwMS0uMTEyIDMuNzk3aDIuNzEyYy4zODguMDIzLjM5MyAxLjI1MS4zOTMgMS4yNjZIOS4xODNhOS4yMjMgOS4yMjMgMCAwMS0uNDA4IDIuMTAybC43NTctLjYwNGMuNDUyLjQ1NiAxLjUxMiAxLjcxMiAxLjkwNiAyLjE3Ny40NzMuNjgxLjA2MyAyLjA4MS4wNjMgMi4wODFsLTIuNzk0LTMuMzgyYy0uNjUzIDIuNTE4LTEuODQ1IDMuNjA3LTEuODQ1IDMuNjA3LS41MjMuNDY4LTEuNTguODItMi42NC41MTYgMi4yMTgtMS43MyAzLjQ0LTMuOTE3IDMuNjY3LTYuNDk3SDQuNDkxYzAtLjAxNS4xOTctMS4yNDMuODA2LTEuMjY2aDIuNzFjLjAyNC0uMzIuMDg2LTMuMjU0LjA4Ni0zLjc5N0g2LjU5OGMtLjEzNi40MDYtLjE1OC40NDctLjI2OC43NTMtLjU5NCAxLjA5NS0xLjYwMyAxLjEyMi0xLjkwNyAxLjE1NS45MDYtMS44MjEgMS40MTYtMy42IDEuNTkxLTQuMDY0LjQyNS0xLjEyNCAxLjY3MS0xLjEyNSAxLjY3MS0xLjEyNXpNMTMuMDc4IDZoNi4zNzd2MTEuMzNoLTIuNTczbC0yLjE4NCAxLjM3My0uNDAxLTEuMzczaC0xLjIxOXptMS4zMTMgMS4yMTl2OC44NmguNjIzbC4yNjMuOTM3IDEuNDU1LS45MzhoMS40NTZ2LTguODZ6Ii8+PC9zdmc+",
+  "reddit": "PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+UmVkZGl0PC90aXRsZT48cGF0aCBkPSJNMTIgMEM1LjM3MyAwIDAgNS4zNzMgMCAxMmMwIDMuMzE0IDEuMzQzIDYuMzE0IDMuNTE1IDguNDg1bC0yLjI4NiAyLjI4NkMuNzc1IDIzLjIyNSAxLjA5NyAyNCAxLjczOCAyNEgxMmM2LjYyNyAwIDEyLTUuMzczIDEyLTEyUzE4LjYyNyAwIDEyIDBabTQuMzg4IDMuMTk5YzEuMTA0IDAgMS45OTkuODk1IDEuOTk5IDEuOTk5IDAgMS4xMDUtLjg5NSAyLTEuOTk5IDItLjk0NiAwLTEuNzM5LS42NTctMS45NDctMS41Mzl2LjAwMmMtMS4xNDcuMTYyLTIuMDMyIDEuMTUtMi4wMzIgMi4zNDF2LjAwN2MxLjc3Ni4wNjcgMy40LjU2NyA0LjY4NiAxLjM2My40NzMtLjM2MyAxLjA2NC0uNTggMS43MDctLjU4IDEuNTQ3IDAgMi44MDIgMS4yNTQgMi44MDIgMi44MDIgMCAxLjExNy0uNjU1IDIuMDgxLTEuNjAxIDIuNTMxLS4wODggMy4yNTYtMy42MzcgNS44NzYtNy45OTcgNS44NzYtNC4zNjEgMC03LjkwNS0yLjYxNy03Ljk5OC01Ljg3LS45NTQtLjQ0Ny0xLjYxNC0xLjQxNS0xLjYxNC0yLjUzOCAwLTEuNTQ4IDEuMjU1LTIuODAyIDIuODAzLTIuODAyLjY0NSAwIDEuMjM5LjIxOCAxLjcxMi41ODUgMS4yNzUtLjc5IDIuODgxLTEuMjkxIDQuNjQtMS4zNjV2LS4wMWMwLTEuNjYzIDEuMjYzLTMuMDM0IDIuODgtMy4yMDcuMTg4LS45MTEuOTkzLTEuNTk1IDEuOTU5LTEuNTk1Wm0tOC4wODUgOC4zNzZjLS43ODQgMC0xLjQ1OS43OC0xLjUwNiAxLjc5Ny0uMDQ3IDEuMDE2LjY0IDEuNDI5IDEuNDI2IDEuNDI5Ljc4NiAwIDEuMzcxLS4zNjkgMS40MTgtMS4zODUuMDQ3LTEuMDE3LS41NTMtMS44NDEtMS4zMzgtMS44NDFabTcuNDA2IDBjLS43ODYgMC0xLjM4NS44MjQtMS4zMzggMS44NDEuMDQ3IDEuMDE3LjYzNCAxLjM4NSAxLjQxOCAxLjM4NS43ODUgMCAxLjQ3My0uNDEzIDEuNDI2LTEuNDI5LS4wNDYtMS4wMTctLjcyMS0xLjc5Ny0xLjUwNi0xLjc5N1ptLTMuNzAzIDQuMDEzYy0uOTc0IDAtMS45MDcuMDQ4LTIuNzcuMTM1LS4xNDcuMDE1LS4yNDEuMTY4LS4xODMuMzA1LjQ4MyAxLjE1NCAxLjYyMiAxLjk2NCAyLjk1MyAxLjk2NCAxLjMzIDAgMi40Ny0uODEgMi45NTMtMS45NjQuMDU3LS4xMzctLjAzNy0uMjktLjE4NC0uMzA1LS44NjMtLjA4Ny0xLjc5NS0uMTM1LTIuNzY5LS4xMzVaIi8+PC9zdmc+",
+  "github": "PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+R2l0SHViPC90aXRsZT48cGF0aCBkPSJNMTIgLjI5N2MtNi42MyAwLTEyIDUuMzczLTEyIDEyIDAgNS4zMDMgMy40MzggOS44IDguMjA1IDExLjM4NS42LjExMy44Mi0uMjU4LjgyLS41NzcgMC0uMjg1LS4wMS0xLjA0LS4wMTUtMi4wNC0zLjMzOC43MjQtNC4wNDItMS42MS00LjA0Mi0xLjYxQzQuNDIyIDE4LjA3IDMuNjMzIDE3LjcgMy42MzMgMTcuN2MtMS4wODctLjc0NC4wODQtLjcyOS4wODQtLjcyOSAxLjIwNS4wODQgMS44MzggMS4yMzYgMS44MzggMS4yMzYgMS4wNyAxLjgzNSAyLjgwOSAxLjMwNSAzLjQ5NS45OTguMTA4LS43NzYuNDE3LTEuMzA1Ljc2LTEuNjA1LTIuNjY1LS4zLTUuNDY2LTEuMzMyLTUuNDY2LTUuOTMgMC0xLjMxLjQ2NS0yLjM4IDEuMjM1LTMuMjItLjEzNS0uMzAzLS41NC0xLjUyMy4xMDUtMy4xNzYgMCAwIDEuMDA1LS4zMjIgMy4zIDEuMjMuOTYtLjI2NyAxLjk4LS4zOTkgMy0uNDA1IDEuMDIuMDA2IDIuMDQuMTM4IDMgLjQwNSAyLjI4LTEuNTUyIDMuMjg1LTEuMjMgMy4yODUtMS4yMy42NDUgMS42NTMuMjQgMi44NzMuMTIgMy4xNzYuNzY1Ljg0IDEuMjMgMS45MSAxLjIzIDMuMjIgMCA0LjYxLTIuODA1IDUuNjI1LTUuNDc1IDUuOTIuNDIuMzYuODEgMS4wOTYuODEgMi4yMiAwIDEuNjA2LS4wMTUgMi44OTYtLjAxNSAzLjI4NiAwIC4zMTUuMjEuNjkuODI1LjU3QzIwLjU2NSAyMi4wOTIgMjQgMTcuNTkyIDI0IDEyLjI5N2MwLTYuNjI3LTUuMzczLTEyLTEyLTEyIi8+PC9zdmc+",
+  "stackoverflow": "PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+U3RhY2sgT3ZlcmZsb3c8L3RpdGxlPjxwYXRoIGQ9Ik0xNS43MjUgMGwtMS43MiAxLjI3NyA2LjM5IDguNTg4IDEuNzE2LTEuMjc3TDE1LjcyNSAwem0tMy45NCAzLjQxOGwtMS4zNjkgMS42NDQgOC4yMjUgNi44NSAxLjM2OS0xLjY0NC04LjIyNS02Ljg1em0tMy4xNSA0LjQ2NWwtLjkwNSAxLjk0IDkuNzAyIDQuNTE3LjkwNC0xLjk0LTkuNzAxLTQuNTE3em0tMS44NSA0Ljg2bC0uNDQgMi4wOTMgMTAuNDczIDIuMjAxLjQ0LTIuMDkyLTEwLjQ3My0yLjIwM3pNMS44OSAxNS40N1YyNGgxOS4xOXYtOC41M2gtMi4xMzN2Ni4zOTdINC4wMjF2LTYuMzk2SDEuODl6bTQuMjY1IDIuMTMzdjIuMTNoMTAuNjZ2LTIuMTNINi4xNTRaIi8+PC9zdmc+",
+  "taobao": "PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+VGFvYmFvPC90aXRsZT48cGF0aCBkPSJNMjEuMzA5OSA5LjkwMDhjLjUyODUgMCAuOTU4NC40Mjg0Ljk1ODQuOTU4OSAwIC41Mjc2LS40Mjk5Ljk1OC0uOTU4NC45NTgtLjUyNzYgMC0uOTU4NS0uNDMwNC0uOTU4NS0uOTU4IDAtLjUzMDUuNDMwOS0uOTU5Ljk1ODUtLjk1OXptMi4zODk5IDMuMDQ2MmgtMTAuNDA4di0uOTU5NWg0LjE1VjkuNzU5MWgtMi44ODY5di0uNzY4aDIuODg2OHYtLjkyMzRoLTIuNTA4di4yMDM0aC0xLjY0MThWNS4zNzMzaDEuNjQxOHYuMzQ5N2MuNDk0NS0uMDYwNyAxLjQ2My0uMTgxNCAyLjUxNzUtLjI5NTZ2LS44MjU3aDEuODUyMnYuNjQwOGMuOTI0OS0uMDgwNyAxLjc1My0uMTMxMiAyLjIxMS0uMTExMiAxLjQ4OS4wNzE2IDIuNDQ0OS4yODE2IDIuNDg1IDEuMjczLjAzNTYuOTg5LTEuNDI0NCAxLjkwNDMtMS40MjQ0IDEuOTA0M2wtLjQ1MDktLjQzMzh2LjE5MjloLTIuODExNnYuOTIzM2gzLjIyOXYuNzY4aC0zLjIyOXYyLjIyODVoNC4zODczdi45NTk1ek0yMS41MjU5IDcuMjk5bC0uMDExNS0uMDExNXMxLjM3MjItLjc1OTUuMzQyNy0xLjI3MmMtLjg2MzMtLjQzLTUuNTM0Ni4zMDU2LTYuOTIzNC42MjU3di42NTc4aDYuNTkyMnpNMS44ODIyIDYuNDE2NmMuNTUxNSAwIC45OTg1LS40NDkuOTk4NS0xIDAtLjU1MzEtLjQ0Ny0uOTk5NS0uOTk4NS0uOTk5NWEuOTk4NC45OTg0IDAgMDAtMS4wMDEuOTk5NWMwIC41NTEuNDQ2MyAxIDEuMDAxIDF6bTMuNDA5NC0uODU5NmMuMjUyLS40MzY0LjM3MTctLjcxOTUuMzcxNy0uNzE5NWwtMS40NjYtLjQxMjNTMy42MDY4IDYuMzU0NiAyLjU1MjcgNy4yNTNjMCAwIDEuMDE5NS41ODk3IDEuMDA5NS41NzMyYTkuNjQ0NCA5LjY0NDQgMCAwMC43ODItLjg3OTNjLjIzNDUtLjEwMTcuNDU4NS0uMTk4LjY3OTQtLjI4NzYtLjI3MTUuNDg3LS43MDk0IDEuMjE5LTEuMTQ3OCAxLjY4MDlsLjYxNzguNTM4NXMuNDE5OC0uNDAzMy44NzkyLS44OTA3aC41MjQ2di44OTkzSDMuODU1N3YuNzIwNGgyLjA0MTZ2MS43MjM1Yy0uMDI1IDAtLjA1MjEgMC0uMDc4Mi0uMDAyLS4yMjQtLjAxMDYtLjU3NTEtLjA0NzYtLjcxMjQtLjI2NS0uMTY3OC0uMjYzNi0uMDQ0LS43NDk2LS4wMzQ2LTEuMDQ1N0gzLjY2MDhsLS4wNDk2LjAyNnMtLjUxNyAyLjMxNDIgMS40ODkgMi4yNjIxYzEuODc5My4wNTIxIDIuOTU0NC0uNTIzIDMuNDcyNS0uOTE3OGwuMjA2NC43NjQ1IDEuMTU4My0uNDgyNS0uNzg1LTEuOTE4My0uOTQxLjI5Mi4xNzY0LjY1NzRjLS4yNDE1LjE4MDktLjUxOC4zMTU3LS44MTg3LjQxMzRWOS42MDc2aDEuOTk1di0uNzIwNGgtMS45OTV2LS44OTkzaDIuMDAzdi0uNzJoLTMuNTU3Yy4yNTY1LS4zMTExLjQ1ODktLjU5ODIuNTA5NS0uNzhMNS45MDU4IDYuMzJjMi42NjAzLS45NTE5IDQuMTQwOC0uNzg4NiA0LjEyNzguNzczdjQuMTEyOHMuMTU2OCAxLjQxMjQtMS40NjEgMS4zMTA3bC0uODc1Ny0uMTg4LS4yMDcuODMwN3MzLjc4MjIgMS4wODEyIDQuMDkxMy0xLjgyNDZjLjMwOTYtMi45MDU4LS4wNzY3LTQuNzU3Ni0uMDc2Ny00Ljc1NzZzLS4zNDUxLTIuNjgyNC02LjIxMy0xLjAyek0uMDU4MiAxMi4xNTM0bDEuNTg2Ny45OTA1YzEuMDk2Ny0yLjM4MTMgMS4wMjY1LTIuMDY1NyAxLjMwMi0yLjkyLjI4MzItLjg3MzcuMzQ1My0xLjU0LS4xMzYyLTIuMDIzLS42MTcyLS42MTk3LS42ODQ0LS42NzczLTEuNjAxNy0xLjM1ODJMLjU0ODcgNy44NTYybDEuMjE2NC43NTc2cy44MTQxLjQxNTMuNDI3NCAxLjE5MDNjLS4zNjE3LjczNzUtMi4xMzQzIDIuMzQ5My0yLjEzNDMgMi4zNDkzem0xOS45NCA2Ljg0ODRzLS4wMTg2LjUyMy0uNjcwNC41MjNjLS41ODkyIDAtLjYzNjMtLjQxMTMtLjYzNjMtLjQxMTMtLjI0ODUuMjk5Ni0uNjIwNy40NTQ5LTEuMDY5Ni40NTQ5LS43NjA2IDAtMS4yOTYxLS41MTM1LTEuMjk2MS0xLjI4OTYgMC0uNzg2LjU1NzYtMS4yOCAxLjM5ODMtMS4yOC4zODMyIDAgLjcyNS4xNDYyLjkyNTguNDAzNy4wMDY2LS4wNzA2LjAxMzYtLjEzNjIuMDEzNi0uMTk2OCAwLS41NjIyLS4zMDkyLS44MTI3LTEuMDEtLjgxMjctLjMzODIgMC0uNjY1OS4wNDg2LTEuMDEzNi4xNDA4LjExMDctLjIxOS4xOTI0LS4zNzkzLjI5NzEtLjQ1NzQuMTIwMi0uMDk3Mi40Mjk0LS4xNDA4Ljk0MTktLjE0MDggMS4yNjkgMCAxLjc0Mi40MjU5IDEuNzQyIDEuNDI3OXYxLjIwMjRjMCAuMzE2MS4wMzMuNDM1OS4zNzcyLjQzNTl6bS0xLjMyNzItLjc0NWMwLS40ODE1LS4yNTU1LS43NDctLjYzNzgtLjc0Ny0uNDA0MyAwLS42NjY4LjI4MjUtLjY2NjguNzU5NSAwIC40NjcuMjc3NS43NjE1LjY1MzMuNzYxNS4zODgyIDAgLjY1MTMtLjI3NS42NTEzLS43NzR6bTUuMjcwNi0uNTAxYzAgMS4xNTI4LS42OTI0IDEuODI3MS0xLjc3ODYgMS44MjcxLTEuMDk1NyAwLTEuNzc2Ni0uNjc0My0xLjc3NjYtMS44MjcxIDAtMS4xNTg0LjY4MDktMS44MjUyIDEuNzc2Ni0xLjgyNTIgMS4wODYyIDAgMS43Nzg2LjY3MTkgMS43Nzg2IDEuODI1MnptLTEuMDg2NyAwYzAtLjg2OTMtLjIzNy0xLjI5OTctLjY5Mi0xLjI5OTctLjQ3MzQgMC0uNjkzOC40MzA0LS42OTM4IDEuMjk5NyAwIC44NjYyLjIyMDQgMS4yOTkuNjkzOSAxLjI5OS40NjcgMCAuNjkxOS0uNDMyOC42OTE5LTEuMjk5em0tNy4xMzEzLS4wNDQxYzAgMS4xNzAzLS42NTM0IDEuODU2Ny0xLjU3NjcgMS44NTY3LS40MjMzIDAtLjgwNTYtLjE2MzMtMS4wNDY2LS40NyAwIDAtLjEwODIuNDI2NC0uNjYxOC40MjY0LS42ODg0IDAtLjY2NDQtLjUyMy0uNjY0NC0uNTIzLjM4NjguMDE2NS4zNzU4LS4yMTQ1LjM3NTgtLjQzNnYtMi44ODYyYzAtLjM1NTItLjA3NDItLjQ3OTUtLjQyNjktLjQ4NjUuMDEzNi0uMTA3Mi4wNzc3LS41Mzc2LjY3ODktLjUzNzYuODE1NiAwIC43NjE1LjkxNDkuNzYxNS45MTQ5di43ODZjLjIyOS0uMjY4LjU1MTYtLjM5NDIuOTkwNS0uMzk0Mi45NjI0IDAgMS41Njk3LjY0NDcgMS41Njk3IDEuNzQ5NXptLTEuMDkzNy4wODA2YzAtLjg5ODMtLjI3MTYtMS4zNTU3LS43NjE2LTEuMzU1Ny0uNDM5MyAwLS43NC4zOTY4LS43NCAxLjEwNDd2LjM2MDJjMCAuNzIwNS4zMTUyIDEuMTE2OC43NjMxIDEuMTE2OC40NzcgMCAuNzM4NS0uNDEzNC43Mzg1LTEuMjI2em0tMy4yNDI1LS4wMzY1YzAgMS4xNTI4LS42ODggMS44MjcxLTEuNzgwNiAxLjgyNzEtMS4wOTM3IDAtMS43NzI2LS42NzQzLTEuNzcyNi0xLjgyNzEgMC0xLjE1ODQuNjc4OS0xLjgyNTIgMS43NzI2LTEuODI1MiAxLjA5MjcgMCAxLjc4MDYuNjcxOSAxLjc4MDYgMS44MjUyem0tMS4wODMyIDBjMC0uODY5My0uMjM2LTEuMjk5Ny0uNjk3NC0xLjI5OTctLjQ2NyAwLS42ODc0LjQzMDQtLjY4NzQgMS4yOTk3IDAgLjg2NjIuMjIwNSAxLjI5OS42ODc0IDEuMjk5LjQ2OSAwIC42OTc0LS40MzI4LjY5NzQtMS4yOTl6bS01Ljk4OTUtMi43MTZjLS4yNjguMDc4Mi0uNzkwMS4wOTcyLTEuNTUxNi4wOTcyLS45MjUgMC0xLjUzOTEtLjAzOS0xLjg1NDMtLjAzOS0uNTE5NSAwLS43MjU0LjEzNDItLjkwODguNjU5Mi4zMDA2LS4xMDE3LjY3MjktLjEwODcgMS4xMzUzLS4xMDg3LjM1MTIgMCAuNDEwOC4wNDMxLjQxMDguMjk0MVYxOC44NDZjMCAuMjgyMS4xMTc4LjY3ODkuNzI1NS42Nzg5LjcxMDQgMCAuODM0Ni0uNTI2LjgzNDYtLjUyNi0uMzU1Mi0uMDA3LS40MjQ4LS4xMzEzLS40MjQ4LS40ODY1VjE1Ljk1MmMwLS4yNjc1LjEwMTItLjI3OTUuNDcxLS4yNzk1LjEyNTIgMCAuMjA5NC4wMDcuMjYwNS4wMDcuNTQ1IDAgLjY4ODMtLjEwNDcuOTAxOC0uNjM5OHptMy4xMzAzIDMuOTYycy0uMDE4LjUyMy0uNjY2NC41MjNjLS41NTYgMC0uNjQwMy0uNDExMy0uNjQwMy0uNDExMy0uMjQ4LjI5OTYtLjYyMDcuNDU0OS0xLjA2NTYuNDU0OS0uNzY1NSAwLTEuMjk5Ni0uNTEzNS0xLjI5OTYtMS4yODk2IDAtLjc4Ni41NTctMS4yOCAxLjM5OTMtMS4yOC4zODQzIDAgLjcyNzQuMTQ2Mi45MjU4LjQwMzcuMDAzNi0uMDcwNi4wMTA2LS4xMzYyLjAxMDYtLjE5NjggMC0uNTYyMi0uMzA1MS0uODEyNy0xLjAwNy0uODEyNy0uMzM4MiAwLS42NjY5LjA0ODYtMS4wMTUuMTQwOC4xMTMxLS4yMTkuMTkyMy0uMzc5My4yOTQ1LS40NTc0LjEyOTMtLjA5NzIuNDMyOS0uMTQwOC45NDY5LS4xNDA4IDEuMjY1IDAgMS43NDYuNDI1OSAxLjc0NiAxLjQyNzl2MS4yMDI0YzAgLjMxNjEuMDI3Ni40MzU5LjM3MDguNDM1OXptLTEuMzI2Mi0uNzQ1YzAtLjQ4MTUtLjI1NTUtLjc0Ny0uNjM3OC0uNzQ3LS40MDEzIDAtLjY2NjguMjgyNS0uNjY2OC43NTk1IDAgLjQ2Ny4yNzkuNzYxNS42NTEzLjc2MTUuMzg5MyAwIC42NTMzLS4yNzUuNjUzMy0uNzc0eiIvPjwvc3ZnPg==",
+  "amazon": "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjI0MCAyNTYgNTQ0IDUxMiIgZmlsbD0iY3VycmVudENvbG9yIj48dGl0bGU+QW1hem9uPC90aXRsZT48cGF0aCBkPSJNMjU2LjkgNjQwLjVjMS41LTIuNSA0LTIuNiA3LjQtLjUgNzcuNiA0NSAxNjIuMSA2Ny42IDI1My4zIDY3LjYgNjAuOSAwIDEyMS0xMS40IDE4MC4zLTM0bDYuNy0zYzIuOS0xLjMgNS0yLjEgNi4zLTIuOCA0LjgtMS45IDguMy0xIDExLjIgMi44IDIuNiAzLjcgMS45IDcuMi0yLjYgMTAuMi01LjUgNC4xLTEyLjggOC44LTIxLjUgMTQtMjYuNSAxNS45LTU2LjMgMjguMS04OS4zIDM2LjgtMzIuNyA4LjctNjUgMTMtOTYuNCAxMy00OC4zIDAtOTQuMS04LjUtMTM3LjMtMjUuMy00My4xLTE2LjktODEuNS00MC44LTExNS45LTcxLjUtMi4xLTEuNi0zLjItMy4yLTMuMi00LjcgMC0xIC40LTEuOSAxLjEtMi44bC0uMS4yem0xNDAuMi0xMzIuN2MwLTIxLjQgNS4zLTM5LjggMTUuOS01NSAxMC42LTE1LjIgMjUtMjYuNyA0My41LTM0LjUgMTctNy4xIDM3LjUtMTIuMyA2Mi4xLTE1LjQgOC4zLTEgMjItMi4yIDQxLTMuN3YtNy45YzAtMTkuOC0yLjItMzMuMy02LjQtNDAtNi40LTkuMi0xNi42LTEzLjktMzAuNy0xMy45aC0zLjljLTEwLjIgMS0xOS4xIDQuMi0yNi42IDkuOC03LjUgNS44LTEyLjMgMTMuNC0xNC40IDIzLjQtMS4zIDYuNC00LjQgOS45LTkuMyAxMC45bC01My44LTYuN2MtNS4zLTEuMy03LjktMy44LTcuOS04LjMgMC0xIC4xLTEuOS41LTMuMiA1LjMtMjcuNSAxOC4yLTQ4IDM4LjgtNjEuNSAyMC44LTEzLjEgNDQuOC0yMC44IDcyLjQtMjIuNGgxMS41YzM1LjIgMCA2My4xIDkuMyA4MyAyNy41IDIuOSAzLjIgNS44IDYuNCA4LjYgMTAuMiAyLjYgMy41IDQuOCA2LjcgNiA5LjYgMS42IDIuOSAzLjIgNyA0LjIgMTIuMiAxLjMgNS40IDIuMiA5IDIuOSAxMC45LjYgMi4yIDEuMyA2LjQgMS42IDEzLjEuMiA2LjcuNCAxMC41LjQgMTEuOHYxMTIuN2MwIDggMS4zIDE1LjQgMy41IDIyLjEgMi4yIDYuNyA0LjUgMTEuNSA2LjcgMTQuNGwxMC45IDE0LjRjMS45IDIuOSAyLjkgNS41IDIuOSA3LjcgMCAyLjYtMS4zIDQuOC0zLjggNi43LTI1LjYgMjIuNC0zOS43IDM0LjYtNDEuOSAzNi41LTMuNSAyLjktOCAzLjItMTMuNCAxLTQuMi0zLjUtOC03LjEtMTEuMi0xMC42bC02LjYtNy40Yy0xLjMtMS42LTMuNS00LjUtNi44LTlsLTYuNC05LjNjLTE3LjMgMTguOS0zNC4yIDMwLjctNTEuMiAzNS41LTEwLjUgMy4yLTIzLjMgNC44LTM5LjEgNC44LTIzLjcgMC00My41LTcuMy01OC45LTIyLjEtMTUuNC0xNC43LTIzLTM1LjUtMjMtNjIuN2wtMS4xLTEuNnptODAtOS40YzAgMTIuMSAzIDIxLjggOS4xIDI5LjEgNi4xIDcuMyAxNC40IDEwLjkgMjQuNyAxMC45IDEgMCAyLjMtLjEgNC4yLS40IDEuOS0uMyAyLjktLjUgMy41LS41IDEzLjEtMy40IDIzLTExLjggMzAuNC0yNS4xIDMuNS02IDYuMS0xMi40IDcuNy0xOS40IDEuOS02LjggMi42LTEyLjYgMi45LTE3LjEuMy00LjIuMy0xMS41LjMtMjEuNFY0NDNjLTE3LjkgMC0zMS43IDEuMy00MSAzLjgtMjcuMiA3LjctNDEgMjUtNDEgNTEuOWwtLjctLjR2LjF6bTE5NS42IDE1MGMuNi0xLjMgMS42LTIuMyAyLjgtMy42IDcuNy01LjIgMTUuMi04LjggMjIuNC0xMC43IDExLjctMi44IDIzLjMtNC43IDM0LjQtNS4xIDMtLjMgNiAwIDguOC42IDEzLjkgMS4zIDIyLjQgMy42IDI1IDcgMS4zIDEuOSAxLjkgNC45IDEuOSA4LjN2My4yYzAgMTAuOS0zIDIzLjctOC45IDM4LjRzLTE0LjIgMjYuNi0yNC43IDM1LjljLTEuNiAxLjMtMyAxLjktNC4yIDEuOS0uNiAwLTEuMyAwLTEuOS0uMy0xLjktLjktMi4zLTIuNi0xLjQtNS4xIDExLjUtMjYuOSAxNy4yLTQ1LjcgMTcuMi01Ni4zIDAtMy4yLS42LTUuOC0xLjktNy4zLTMuMS0zLjUtMTEuNy01LjUtMjYuMS01LjUtNS4yIDAtMTEuNC4zLTE4LjYgMS03LjcgMS0xNC45IDEuOS0yMS4zIDIuOS0xLjkgMC0zLjItLjMtMy44LS45LS42LS42LS44LTEtLjQtMS42IDAtLjQuMS0uNi40LTEuM3YtMS4zbC4zLS4yeiIgLz48L3N2Zz4NCg==",
+};
+const icon = (name) => `<svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${glyphs[name]}</svg>`;
+const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, (character) => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+})[character]);
+const $ = (selector, root = document) => root.querySelector(selector);
+const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+
+const pages = [
+  ["general", "常规", "settings"], ["appearance", "外观", "palette"],
+  ["engines", "搜索引擎", "search"], ["shortcuts", "快捷键", "keyboard"],
+  ["browser", "浏览器", "browser"], ["history", "搜索历史", "history"],
+  ["ocr", "OCR 搜索", "scan"], ["config", "配置文件", "file-typography"],
+];
+const builtIns = [
+  ["bing", "必应", "bing", "https://www.bing.com/search?q=%s"],
+  ["baidu", "百度", "bd", "https://www.baidu.com/s?wd=%s"],
+  ["google", "Google", "g", "https://www.google.com/search?q=%s"],
+  ["bilibili", "哔哩哔哩", "bili", "https://search.bilibili.com/all?keyword=%s"],
+  ["youtube", "YouTube", "yt", "https://www.youtube.com/results?search_query=%s"],
+  ["zhihu", "知乎", "zh", "https://www.zhihu.com/search?type=content&q=%s"],
+  ["reddit", "Reddit", "rd", "https://www.reddit.com/search/?q=%s"],
+  ["github", "GitHub", "gh", "https://github.com/search?q=%s"],
+  ["stackoverflow", "Stack Overflow", "so", "https://stackoverflow.com/search?q=%s"],
+  ["taobao", "淘宝", "tb", "https://s.taobao.com/search?q=%s"],
+  ["amazon", "Amazon", "amz", "https://www.amazon.com/s?k=%s"],
+].map(([id, name, alias, url]) => ({ id, name, alias, url, color: "#005fb8" }));
+const initialCustom = [
+  { id: "custom-1", name: "维基百科", alias: "wiki", url: "https://zh.wikipedia.org/w/index.php?search=%s", color: "#475469" },
+  { id: "custom-2", name: "MDN Web Docs", alias: "mdn", url: "https://developer.mozilla.org/zh-CN/search?q=%s", color: "#6e477f" },
+];
+const browsers = [
+  { id: "system", name: "跟随 Windows 默认浏览器", path: "" },
+  { id: "edge", name: "Microsoft Edge", path: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe" },
+  { id: "chrome", name: "Google Chrome", path: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" },
+  { id: "firefox", name: "Mozilla Firefox", path: "C:\\Program Files\\Mozilla Firefox\\firefox.exe" },
+];
+const historyExamples = [
+  ["DirectWrite 灰度抗锯齿设置", "Visual Studio Code", "bing"],
+  ["Windows 11 Fluent Design", "Microsoft Edge", "google"],
+  ["Rust Windows DPI awareness", "Windows Terminal", "github"],
+  ["鬱鑿齒 · 复杂中文字体字形", "记事本", "baidu"],
+  ["ModelScope PP-OCRv6 tiny 中文文本检测和识别模型", "Microsoft Edge", "bing"],
+  ["Direct2D 小尺寸 SVG 曲线像素对齐与高 DPI 渲染", "Visual Studio Code", "google"],
+  ["Microsoft.WindowsAppSDK 版本说明", "Windows Terminal", "github"],
+  ["RapidOCR 模型字典版本", "Windows 文档与 API 参考阅读器 Preview", "bing"],
+];
+const initialHistory = Array.from({ length: 53 }, (_, index) => {
+  const [query, source, engine] = historyExamples[index % historyExamples.length];
+  return { id: index + 1, query: index < 8 ? query : `${query} · ${index + 1}`, source, engine, time: new Date(2026, 10, 21, 15, 40 - index * 20) };
+});
+const modelBase = "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.9.1/";
+const models = [
+  ["检测模型", "onnx/PP-OCRv6/det/PP-OCRv6_det_tiny.onnx", "PP-OCRv6_det_tiny.onnx"],
+  ["识别模型", "onnx/PP-OCRv6/rec/PP-OCRv6_rec_tiny.onnx", "PP-OCRv6_rec_tiny.onnx"],
+  ["字典", "paddle/PP-OCRv6/rec/PP-OCRv6_rec_tiny/ppocrv6_tiny_dict.txt", "ppocrv6_tiny_dict.txt"],
+];
+const demoFolders = [
+  ["D:\\OCR\\PP-OCRv6-tiny", "包含三份模型文件"],
+  ["D:\\OCR\\模型不完整", "缺少字典"],
+  ["D:\\OCR\\模型校验失败", "识别模型文件校验失败"],
+];
+
+const prefs = {
+  startup: false, reveal: true, tray: true, language: "zh-CN",
+  font: "Microsoft YaHei UI", fontFile: "", fontPreview: "", names: true,
+  defaultEngine: "bing", pins: ["github", "google"], custom: structuredClone(initialCustom),
+  main: "双击左 Alt", selection: "", clipboard: "", ocrKey: "Alt+Shift+O",
+  selectionEngine: "bing", selectionAction: "preview", excluded: [],
+  browser: "system", browserPath: "", history: false,
+  ocrEnabled: false, ocrPath: "", configPath: "C:\\Users\\User\\AppData\\Local\\YiSouRust\\settings.json",
+};
+const state = {
+  edition: "full", page: "engines", scroll: new Map(), engineFilter: "", editor: null,
+  engineMenu: null, recording: null, historyRows: initialHistory, historyQuery: "", historySource: "",
+  historyPage: 0, language: prefs.language, browser: prefs.browser, browserPath: prefs.browserPath,
+  exclusion: [], ocrPath: "", ocrStatus: "initial", nextConfig: "",
+  feedback: new Map(),
+};
+const content = $("#content");
+const nav = $("#nav");
+const dialog = $("#dialog");
+const menu = $("#engine-menu");
+const fileInput = $("#local-file");
+
+const englishStrings = new Map(`
+易搜设置|YiSou Settings
+原型预览|Prototype
+原型版本|Edition
+窗口尺寸|Window size
+标准|Standard
+紧凑|Compact
+展开窗口|Expand window
+还原窗口|Restore window
+设置页面|Settings navigation
+设置内容|Settings content
+常规|General
+外观|Appearance
+搜索引擎|Search engines
+快捷键|Shortcuts
+浏览器|Browser
+搜索历史|Search history
+OCR 搜索|OCR search
+配置文件|Configuration
+启动与后台|Startup and background
+登录 Windows 时启动|Start with Windows
+登录后在系统托盘等待。|Stay in the system tray after sign-in.
+手动启动时显示搜索框|Show search when launched manually
+关闭后，手动启动时只驻留托盘。|When off, manual launch opens YiSou in the tray.
+关闭搜索框后驻留托盘|Keep running in the system tray
+关闭此项后，按 Esc 退出易搜。|When off, pressing Esc exits YiSou.
+界面语言|Interface language
+跟随系统|System default
+简体中文|Simplified Chinese
+应用|Apply
+搜索框字体|Search box font
+当前字体|Current font
+选择系统字体|Choose system font
+打开字体文件|Open font file
+恢复默认|Restore default
+20 DIP 搜索框预览|20 DIP search box preview
+搜索引擎菜单|Search engine menu
+磁贴样式|Tile style
+显示名称|Show names
+仅显示图标|Icons only
+字体|Font
+添加引擎|Add engine
+筛选名称或 #别名|Filter by name or #alias
+置顶快捷位|Pinned shortcuts
+仅在搜索框中生效。|Available in the search box.
+空|Empty
+未分配|Unassigned
+引擎|Engine
+别名|Alias
+状态|Status
+默认|Default
+已置顶|Pinned
+设为默认|Set as default
+更多操作|More actions
+置顶|Pin
+取消置顶|Unpin
+没有符合条件的引擎|No matching engines
+清除筛选|Clear filters
+编辑|Edit
+上移|Move up
+下移|Move down
+删除|Delete
+删除引擎|Delete engine
+添加搜索引擎|Add search engine
+编辑搜索引擎|Edit search engine
+返回列表|Back to list
+名称|Name
+别名（可选）|Alias (optional)
+例如 wiki|For example, wiki
+搜索网址|Search URL
+用 %s 表示查询词。|Use %s as the query placeholder.
+图标颜色|Icon color
+导入图标|Import icon
+移除文件图标|Remove file icon
+测试搜索|Test search
+保存|Save
+取消|Cancel
+关闭|Close
+放弃未保存的修改？|Discard unsaved changes?
+当前引擎表单中的修改将被丢弃。|Changes to this engine will be discarded.
+放弃修改|Discard changes
+请输入引擎名称。|Enter an engine name.
+已存在相同别名。|This alias is already in use.
+请输入包含 %s 的有效 HTTP 或 HTTPS 搜索网址。|Enter a valid HTTP or HTTPS search URL with %s.
+全局快捷键|Global shortcuts
+唤出易搜|Show YiSou
+有选区时直接搜索，其余时候打开搜索框。|Search selected text, or open the search box.
+划词搜索|Search selected text
+使用指定的引擎和触发动作。|Uses the selected engine and action.
+划词搜索引擎|Engine for selected text
+触发动作|Action
+直接搜索|Search immediately
+打开搜索框|Open search box
+剪贴板搜索|Search clipboard
+使用默认引擎搜索剪贴板里的文字。|Uses the default engine to search clipboard text.
+OCR 快捷键|OCR shortcut
+前往设置|Open settings
+未设置|Unassigned
+双击左 Alt|Double-press left Alt
+录制|Record
+清除|Clear
+按下快捷键|Press a shortcut
+此组合键已由系统保留。|This shortcut is reserved by Windows.
+请同时按下 Ctrl、Alt、Shift 或 Win。|Include Ctrl, Alt, Shift, or Win.
+双击 Alt 排除的应用|Apps excluded from double-press Alt
+添加排除应用|Add an excluded app
+没有排除应用|No excluded apps
+例如 mstsc.exe|For example, mstsc.exe
+添加|Add
+已应用排除列表。|Exclusions applied.
+打开搜索结果|Open search results
+跟随 Windows 默认浏览器|Use the Windows default browser
+选择其他浏览器…|Choose another browser…
+浏览器程序|Browser executable
+浏览…|Browse…
+已应用浏览器设置。|Browser preference applied.
+请输入完整的 Windows .exe 路径。|Enter the full Windows .exe path.
+本机搜索记录|Local search history
+记录搜索历史|Record search history
+关闭后仍可查看已有记录。|Existing records stay visible when recording is off.
+搜索内容|Search terms
+来源应用|Source application
+再次搜索|Search again
+删除记录|Delete record
+已删除这条记录。|Record deleted.
+上一页|Previous
+下一页|Next
+没有符合筛选条件的记录|No matching records
+暂无搜索记录|No search history
+截图文字搜索|Search text from screenshots
+启用 OCR 搜索|Enable OCR search
+启用前需要配置并验证本地 OCR 模型。|Configure and verify a local OCR model before enabling.
+本地模型|Local model
+模型文件夹|Model folder
+选择模型文件夹|Select model folder
+选择文件夹|Select folder
+将检测模型、识别模型和字典放在同一个目录。|Place the detector, recognizer, and dictionary in the same folder.
+检测模型|Detector
+识别模型|Recognizer
+字典|Dictionary
+包含三份模型文件|All three files present
+缺少字典|Dictionary missing
+识别模型文件校验失败|Recognizer failed verification
+待配置|Setup required
+正在检查模型…|Checking model…
+模型可用|Model ready
+请先选择本地模型文件夹。|Choose a local model folder first.
+此原型目录未配置。请从「浏览」中选择样例。|Choose a sample directory with Browse.
+OCR 搜索已启用。|OCR search enabled.
+OCR 搜索已关闭。|OCR search disabled.
+已应用模型目录。|Model folder applied.
+当前配置|Current configuration
+更换位置…|Change location…
+更换配置位置|Change configuration location
+配置文件路径|Configuration file path
+确认|Confirm
+完整配置|Full configuration
+设置备份|Settings backup
+导入将替换当前配置。|Import replaces the current configuration.
+导入配置…|Import settings…
+导出配置…|Export settings…
+搜索引擎包|Search engine pack
+搜索引擎与置顶顺序|Engines and pin order
+导入会合并自定义引擎与置顶顺序。|Import merges custom engines and pin order.
+导入引擎…|Import engines…
+导出引擎…|Export engines…
+导入|Import
+替换当前配置？|Replace current configuration?
+导入搜索引擎包？|Import search engine pack?
+`.trim().split("\n").map((entry) => entry.split("|")));
+const sourceText = new WeakMap();
+const sourceAttributes = new WeakMap();
+const localizableAttributes = ["aria-label", "title", "placeholder"];
+
+function uiLanguage() {
+  if (prefs.language === "en-US" || (prefs.language === "system" && !navigator.language.toLowerCase().startsWith("zh"))) return "en";
+  return "zh-CN";
+}
+function localizeText(text) {
+  if (uiLanguage() !== "en") return text;
+  const normalized = text.trim();
+  const direct = englishStrings.get(normalized);
+  if (direct) return text.replace(normalized, direct);
+  const patterns = [
+    [/^(.+)：更多操作$/, (_, name) => `More actions for ${name}`],
+    [/^此组合键已用于「(.+)」。$/, (_, name) => `This shortcut is already assigned to ${englishStrings.get(name) || name}.`],
+    [/^缺少文件 · (.+)$/, (_, file) => `Missing file · ${file}`],
+    [/^识别模型校验失败 · (.+)$/, (_, file) => `Recognizer failed verification · ${file}`],
+    [/^(\d+) 条 · 第 (\d+) \/ (\d+) 页$/, (_, count, page, total) => `${count} results · Page ${page} of ${total}`],
+  ];
+  for (const [pattern, replacement] of patterns) {
+    if (pattern.test(normalized)) return text.replace(pattern, replacement);
+  }
+  return text;
+}
+function localize(root) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+  for (let node = root; node; node = walker.nextNode()) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (!node.data.trim()) continue;
+      if (!sourceText.has(node)) sourceText.set(node, node.data);
+      const translated = localizeText(sourceText.get(node));
+      if (node.data !== translated) node.data = translated;
+    }
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const originals = sourceAttributes.get(node) || {};
+      for (const attribute of localizableAttributes) {
+        if (!node.hasAttribute(attribute)) continue;
+        originals[attribute] ??= node.getAttribute(attribute);
+        const translated = localizeText(originals[attribute]);
+        if (node.getAttribute(attribute) !== translated) node.setAttribute(attribute, translated);
+      }
+      sourceAttributes.set(node, originals);
+    }
+  }
+}
+const localeObserver = new MutationObserver((records) => {
+  if (uiLanguage() !== "en") return;
+  for (const { addedNodes } of records) {
+    for (const node of addedNodes) localize(node);
+  }
+});
+localeObserver.observe(document.body, { childList: true, subtree: true });
+
+const engines = () => [...builtIns, ...prefs.custom];
+const engineById = (id) => engines().find((engine) => engine.id === id);
+const brand = (engine) => {
+  if (!engine) return "";
+  if (Object.hasOwn(brandSvgs, engine.id)) return `<img class="brand-icon" alt="" src="data:image/svg+xml;base64,${brandSvgs[engine.id]}">`;
+  if (engine.image) return `<img class="brand-icon" alt="" src="${escapeHtml(engine.image)}">`;
+  const color = /^#[0-9a-f]{6}$/i.test(engine.color) ? engine.color : "#005fb8";
+  return `<span class="brand-icon custom-icon" aria-hidden="true" style="--swatch:${color}">${escapeHtml([...engine.name.trim()][0] || "S")}</span>`;
+};
+const btn = (label, action, { id = "", symbol = "", primary = false, disabled = false, value = "", danger = false, tool = false } = {}) =>
+  `<button type="button" class="${tool ? "tool" : "button"}${primary ? " accent" : ""}${danger ? " danger" : ""}" data-action="${action}" data-value="${escapeHtml(value)}"${id ? ` id="${id}"` : ""}${disabled ? " disabled" : ""}${tool ? ` title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"` : ""}>${symbol ? icon(symbol) : ""}${tool ? "" : `<span>${escapeHtml(label)}</span>`}</button>`;
+const toggle = (label, key, value, disabled = false) =>
+  `<button type="button" class="switch" role="switch" aria-label="${label}" aria-checked="${value}" data-action="toggle" data-value="${key}" id="toggle-${key}"${disabled ? " disabled" : ""}></button>`;
+const sub = (text) => `<p class="subtle">${escapeHtml(text)}</p>`;
+const row = (label, detail, action, symbol = "", wrap = false) =>
+  `<div class="row${wrap ? " wrap" : ""}">${symbol ? icon(symbol) : ""}<div class="copy"><div class="label">${escapeHtml(label)}</div>${detail ? sub(detail) : ""}</div>${action}</div>`;
+const group = (title, children) => `<section><h2 class="section-title">${title}</h2><div class="group">${children}</div></section>`;
+const head = (title, actions = "") => `<header class="page-head"><div><h1 tabindex="-1" id="page-heading">${title}</h1></div>${actions}</header>`;
+const option = (value, label, current) => `<option value="${escapeHtml(value)}"${current === value ? " selected" : ""}>${escapeHtml(label)}</option>`;
+const keys = (text) => text
+  ? `<span class="keyset" aria-label="${escapeHtml(text)}">${text.split("+").map((key) => `<kbd>${escapeHtml(key)}</kbd>`).join("")}</span>`
+  : `<span class="subtle">未设置</span>`;
+const feedback = (key) => `<p class="subtle feedback" id="feedback-${key}" role="status">${escapeHtml(state.feedback.get(key) || "")}</p>`;
+const searchField = (id, label, value) =>
+  `<div class="search-field">${icon("search")}<input type="search" id="${id}" aria-label="${label}" placeholder="${label}" value="${escapeHtml(value)}"></div>`;
+
+function drawChrome() {
+  const expanded = $("#prototype").dataset.size === "large";
+  $("#titlebar").innerHTML = `<span class="appmark">${icon("search")}</span><span>易搜设置</span>${btn(expanded ? "还原窗口" : "展开窗口", "expand", { id: "expand", symbol: expanded ? "minimize" : "maximize", tool: true })}`;
+  nav.innerHTML = pages.filter(([id]) => id !== "ocr" || state.edition === "full").map(([id, label, symbol]) =>
+    `<button type="button" class="nav" data-action="navigate" data-value="${id}" aria-label="${label}" title="${label}"${id === state.page ? ' aria-current="page"' : ""}${id === "history" ? " data-divider" : ""}>${icon(symbol)}<span>${label}</span></button>`
+  ).join("");
+}
+function refresh(focus, top = content.scrollTop) {
+  content.innerHTML = `<div class="view">${views[state.page]()}</div>`;
+  content.scrollTop = top;
+  if (focus) $(focus)?.focus({ preventScroll: true });
+}
+function setFeedback(key, value) {
+  state.feedback.set(key, value);
+  const element = $(`#feedback-${key}`);
+  if (element) element.textContent = localizeText(value);
+}
+function changePage(page, focus = "#page-heading") {
+  closeMenu();
+  if (state.page !== page || state.editor) {
+    if (!state.editor) state.scroll.set(state.page, content.scrollTop);
+    state.editor = null;
+    state.recording = null;
+    state.page = page;
+    drawChrome();
+    refresh(focus, state.scroll.get(page) || 0);
+  }
+}
+function guardEditor(action) {
+  if (!state.editor?.dirty) return action();
+  openDialog("放弃未保存的修改？", sub("当前引擎表单中的修改将被丢弃。"), "放弃修改", action);
+}
+function showPage(page, focus) {
+  if (page === state.page && !state.editor) return;
+  guardEditor(() => changePage(page, focus));
+}
+function renderGeneral() {
+  return head("常规") + group("启动与后台",
+    row("登录 Windows 时启动", "登录后在系统托盘等待。", toggle("登录 Windows 时启动", "startup", prefs.startup), "power") +
+    row("手动启动时显示搜索框", "关闭后，手动启动时只驻留托盘。", toggle("手动启动时显示搜索框", "reveal", prefs.reveal), "search") +
+    row("关闭搜索框后驻留托盘", "关闭此项后，按 Esc 退出易搜。", toggle("关闭搜索框后驻留托盘", "tray", prefs.tray), "device-desktop")) +
+    group("界面语言", row("界面语言", "", `<div class="actions"><select id="language" aria-label="界面语言">${[
+      ["system", "跟随系统"], ["zh-CN", "简体中文"], ["en-US", "English"],
+    ].map(([value, label]) => option(value, label, state.language)).join("")}</select>${btn("应用", "apply-language", { id: "apply-language", disabled: state.language === prefs.language })}</div>`, "language", true)) + feedback("general");
+}
+function previewFont() {
+  const family = prefs.fontPreview || prefs.font;
+  return ["Microsoft YaHei UI", "SimHei", "SimSun", "FangSong", "KaiTi", "Segoe UI", "YiSouLocalPreview"].includes(family) ? family : "Microsoft YaHei UI";
+}
+function renderAppearance() {
+  const current = engineById(prefs.defaultEngine);
+  const sample = [current, ...builtIns.filter(({ id }) => id !== current?.id).slice(0, 2)].filter(Boolean);
+  return head("外观") +
+    group("搜索框字体", row("当前字体", prefs.fontFile || prefs.font,
+      `<div class="actions">${btn("选择系统字体", "choose-font", { id: "choose-font" })}${btn("打开字体文件", "font-file", { id: "font-file" })}${btn("恢复默认", "reset-font", { id: "reset-font", disabled: !prefs.fontFile && prefs.font === "Microsoft YaHei UI" })}</div>`, "typography", true) +
+      `<div class="inset stack"><span class="subtle">20 DIP 搜索框预览</span><div class="search-preview" style="font-family:'${previewFont()}', 'Segoe UI', sans-serif"><span>复杂中文 鬱鑿齒 · Search 123</span>${brand(current)}</div>${feedback("font")}</div>`) +
+    group("搜索引擎菜单", row("磁贴样式", "", `<div class="segment" role="group" aria-label="磁贴样式">${[["true", "显示名称"], ["false", "仅显示图标"]].map(([value, label]) =>
+      `<button type="button" id="names-${value}" data-action="names" data-value="${value}" aria-pressed="${String(prefs.names) === value}">${label}</button>`).join("")}</div>`, "", true) +
+      `<div class="inset"><div class="sample-grid" data-names="${prefs.names}">${sample.map((engine) => `<div class="sample-tile" title="${escapeHtml(engine.name)}">${brand(engine)}${prefs.names ? `<span>${escapeHtml(engine.name)}</span>` : ""}</div>`).join("")}</div></div>`);
+}
+function renderSlots() {
+  return `<div class="slots" aria-label="置顶快捷位">${Array.from({ length: 5 }, (_, index) => {
+    const engine = engineById(prefs.pins[index]);
+    return `<div class="slot" title="${escapeHtml(engine?.name || "未分配")}"><kbd>Alt+${index + 1}</kbd>${engine ? `${brand(engine)}<span>${escapeHtml(engine.name)}</span>` : '<span class="subtle">空</span>'}</div>`;
+  }).join("")}</div>`;
+}
+function engineRows() {
+  const filter = state.engineFilter.trim().toLowerCase().replace(/^#/, "");
+  const matches = engines().filter(({ name, alias }) => !filter || [name, alias].some((value) => value.toLowerCase().includes(filter)));
+  if (!matches.length) return `<div class="empty">${icon("search")}<strong>没有符合条件的引擎</strong>${btn("清除筛选", "clear-engines")}</div>`;
+  return `<div class="engine-line columns" aria-hidden="true"><span>引擎</span><span>别名</span><span>状态</span><span></span></div>` + matches.map((engine) => {
+    const pin = prefs.pins.indexOf(engine.id);
+    return `<div class="engine-line"><div class="engine-name">${brand(engine)}<strong>${escapeHtml(engine.name)}</strong></div><span class="alias subtle">${engine.alias ? `#${escapeHtml(engine.alias)}` : "—"}</span><div class="states">${prefs.defaultEngine === engine.id ? "<span>默认</span>" : ""}${pin >= 0 ? `<span title="${pin < 5 ? `置顶，Alt+${pin + 1}` : "已置顶"}" aria-label="已置顶">${icon("pin")}</span>` : ""}</div>
+      <button type="button" class="tool" id="menu-${engine.id}" data-action="engine-menu" data-value="${engine.id}" aria-expanded="false" aria-controls="engine-menu" aria-label="${escapeHtml(engine.name)}：更多操作" title="更多操作">${icon("dots")}</button></div>`;
+  }).join("");
+}
+function renderEngines() {
+  if (state.editor) return renderEditor();
+  return head("搜索引擎") +
+    `<div class="toolbar">${searchField("engine-filter", "筛选名称或 #别名", state.engineFilter)}${btn("添加引擎", "add-engine", { id: "add-engine", primary: true, symbol: "plus" })}</div>` +
+    group("置顶快捷位", `<div class="inset stack">${renderSlots()}${sub("仅在搜索框中生效。")}</div>`) +
+    `<div class="group engine-table" id="engine-list" aria-label="搜索引擎列表">${engineRows()}</div>${feedback("engine")}`;
+}
+function renderEditor() {
+  const draft = state.editor;
+  return head(draft.id ? "编辑搜索引擎" : "添加搜索引擎", btn("返回列表", "cancel-engine", { symbol: "arrow-left" })) +
+    `<div class="group"><form class="inset stack" id="engine-form" novalidate>
+      <div class="field-grid">
+        <div class="field"><label for="engine-name">名称</label><input id="engine-name" data-draft="name" maxlength="64" value="${escapeHtml(draft.name)}" aria-describedby="error-engine-name"><span class="error" id="error-engine-name"></span></div>
+        <div class="field"><label for="engine-alias">别名（可选）</label><input id="engine-alias" data-draft="alias" maxlength="32" placeholder="例如 wiki" value="${escapeHtml(draft.alias)}" aria-describedby="error-engine-alias"><span class="error" id="error-engine-alias"></span></div>
+      </div>
+      <div class="field"><label for="engine-url">搜索网址</label><input id="engine-url" data-draft="url" placeholder="https://example.com/search?q=%s" value="${escapeHtml(draft.url)}" aria-describedby="url-help error-engine-url"><span class="subtle" id="url-help">用 %s 表示查询词。</span><span class="error" id="error-engine-url"></span></div>
+      <div class="field"><label for="engine-color">图标颜色</label><div class="inline"><span id="engine-icon-preview">${brand(draft)}</span><input id="engine-color" data-draft="color" type="color" value="${escapeHtml(draft.color)}">${btn("导入图标", "icon-file", { id: "icon-file" })}${btn("移除文件图标", "remove-icon", { id: "remove-icon", disabled: !draft.image })}</div>${feedback("icon")}</div>
+      <div class="form-actions">${btn("测试搜索", "test-engine", { symbol: "external-link" })}<div class="actions">${btn("取消", "cancel-engine")}<button class="button accent" type="submit">保存</button></div></div>
+    </form></div>`;
+}
+function shortcutBlock(key, title, detail) {
+  const active = state.recording?.key === key;
+  const existing = prefs[key];
+  const reset = key === "main" ? btn("恢复默认", "clear-key", { value: key, disabled: existing === "双击左 Alt" }) :
+    btn("清除", "clear-key", { value: key, disabled: !existing });
+  let extra = "";
+  if (active) {
+    const recording = state.recording;
+    extra = `<div class="inset stack record-box"><div class="inline"><div class="key-capture" id="key-capture" tabindex="0" aria-label="按下快捷键">${recording.value ? keys(recording.value) : "按下快捷键"}</div><div class="actions">${btn("取消", "cancel-record")}${btn("保存", "save-key", { id: "save-key", primary: true, disabled: !recording.value || Boolean(recording.error) })}</div></div><p class="error" role="status" id="key-error">${escapeHtml(recording.error)}</p></div>`;
+  }
+  return row(title, detail, `<div class="actions">${keys(existing)}${btn("录制", "start-record", { id: `record-${key}`, value: key, disabled: active })}${reset}</div>`, "keyboard", true) + extra;
+}
+function renderShortcuts() {
+  return head("快捷键") +
+    group("全局快捷键", shortcutBlock("main", "唤出易搜", "有选区时直接搜索，其余时候打开搜索框。") +
+      shortcutBlock("selection", "划词搜索", "使用指定的引擎和触发动作。") +
+      `<div class="inset field-grid"><div class="field"><label for="selection-engine">划词搜索引擎</label><select id="selection-engine">${engines().map((engine) => option(engine.id, engine.name, prefs.selectionEngine)).join("")}</select></div>
+        <div class="field"><label for="selection-action">触发动作</label><select id="selection-action">${option("direct", "直接搜索", prefs.selectionAction)}${option("preview", "打开搜索框", prefs.selectionAction)}</select></div></div>` +
+      shortcutBlock("clipboard", "剪贴板搜索", "使用默认引擎搜索剪贴板里的文字。") +
+      (state.edition === "full" ? row("OCR 快捷键", "", `<div class="actions">${keys(prefs.ocrKey)}${btn("前往设置", "goto-ocr", { symbol: "scan" })}</div>`, "scan", true) : "")) +
+    group("双击 Alt 排除的应用", `<div class="inset stack"><div class="inline" id="exclusion-items">${exclusionChips()}</div><div class="inline"><input class="wide" id="excluded-app" aria-label="添加排除应用" placeholder="例如 mstsc.exe">${btn("添加", "add-exclusion")}${btn("应用", "save-exclusions", { id: "save-exclusions", disabled: sameExclusions() })}</div><p class="error" id="exclusions-error" role="status"></p></div>`) +
+    feedback("keys");
+}
+function exclusionChips() {
+  return state.exclusion.length ? state.exclusion.map((app, index) => `<span class="chip">${escapeHtml(app)}${btn(`移除 ${app}`, "remove-exclusion", { value: index, tool: true, symbol: "x" })}</span>`).join("") : sub("没有排除应用");
+}
+function sameExclusions() {
+  return JSON.stringify(prefs.excluded) === JSON.stringify(state.exclusion);
+}
+function renderBrowser() {
+  const rows = [...browsers, { id: "other", name: "选择其他浏览器…", path: "" }].map(({ id, name, path }) =>
+    `<label class="row radio-row"><input type="radio" name="browser" id="browser-${id}" value="${id}"${state.browser === id ? " checked" : ""}>${icon(id === "system" ? "device-desktop" : "browser")}<span class="copy"><span class="label">${name}</span>${path ? `<span class="subtle path" style="display:block">${escapeHtml(path)}</span>` : ""}</span></label>`).join("");
+  return head("浏览器") + group("打开搜索结果", rows +
+    (state.browser === "other" ? `<div class="inset stack"><label class="label" for="browser-path">浏览器程序</label><div class="inline"><input class="wide path" id="browser-path" value="${escapeHtml(state.browserPath)}" placeholder="C:\\…\\browser.exe">${btn("浏览…", "browse-browser", { id: "browse-browser", symbol: "folder" })}</div><p class="error" role="alert" id="browser-error"></p></div>` : "") +
+    `<div class="inset inline">${btn("应用", "save-browser", { id: "save-browser", primary: true, disabled: !browserChanged() })}${feedback("browser")}</div>`);
+}
+function browserChanged() {
+  return prefs.browser !== state.browser || (state.browser === "other" && prefs.browserPath !== state.browserPath.trim());
+}
+function historyMatches() {
+  const query = state.historyQuery.trim().toLowerCase();
+  const source = state.historySource.trim().toLowerCase();
+  return state.historyRows.filter((record) => record.query.toLowerCase().includes(query) && record.source.toLowerCase().includes(source));
+}
+const historyTime = new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+function historyResults() {
+  const matches = historyMatches();
+  if (!matches.length) return `<div class="group empty">${icon("history")}<strong>${state.historyRows.length ? "没有符合筛选条件的记录" : "暂无搜索记录"}</strong>${state.historyRows.length ? btn("清除筛选", "clear-history") : ""}</div>`;
+  const count = Math.ceil(matches.length / 24);
+  state.historyPage = Math.max(0, Math.min(state.historyPage, count - 1));
+  const rows = matches.slice(state.historyPage * 24, (state.historyPage + 1) * 24);
+  return `<div class="group">${rows.map((record) => {
+    const engine = engineById(record.engine) || engineById(prefs.defaultEngine);
+    return `<div class="row history-row" data-history-row="${record.id}" tabindex="0" id="history-${record.id}">${brand(engine)}<div class="copy"><strong>${escapeHtml(record.query)}</strong>${sub(`${engine?.name || ""} · ${record.source} · ${historyTime.format(record.time)}`)}</div><div class="actions">
+      <button type="button" class="button" data-action="repeat-search" data-value="${record.id}" aria-label="再次搜索" title="再次搜索">${icon("search")}<span class="repeat-label">再次搜索</span></button>
+      ${btn("删除记录", "delete-history", { tool: true, symbol: "trash", value: record.id })}</div></div>`;
+  }).join("")}</div><div class="pagination"><span class="subtle">${matches.length} 条 · 第 ${state.historyPage + 1} / ${count} 页</span><div class="actions">${btn("上一页", "history-page", { id: "history-prev", value: -1, disabled: state.historyPage === 0 })}${btn("下一页", "history-page", { id: "history-next", value: 1, disabled: state.historyPage + 1 === count })}</div></div>`;
+}
+function renderHistory() {
+  return head("搜索历史") +
+    group("本机搜索记录", row("记录搜索历史", "关闭后仍可查看已有记录。", toggle("记录搜索历史", "history", prefs.history), "history")) +
+    `<section class="stack"><div class="field-grid"><div class="field"><label for="history-query">搜索内容</label><input type="search" id="history-query" value="${escapeHtml(state.historyQuery)}"></div><div class="field"><label for="history-source">来源应用</label><input type="search" id="history-source" value="${escapeHtml(state.historySource)}"></div></div><div id="history-results" aria-live="polite">${historyResults()}</div></section>${feedback("history")}`;
+}
+function ocrStatus() {
+  switch (state.ocrStatus) {
+    case "checking": return `<span class="status-line">${`<span class="spin">${icon("loader-2")}</span>`}正在检查模型…</span>`;
+    case "ready": return `<span class="status-line ok">${icon("circle-check")}模型可用</span>`;
+    case "checksum": return `<span class="status-line error">${icon("x")}识别模型校验失败 · ${models[1][2]}</span>`;
+    case "missing": return `<span class="status-line error">${icon("x")}缺少文件 · ${models[2][2]}</span>`;
+    case "unknown": return `<span class="status-line error">${icon("x")}此原型目录未配置。请从「浏览」中选择样例。</span>`;
+    default: return `<span class="status-line subtle">${icon("folder")}待配置</span>`;
+  }
+}
+function ocrStatusWithActivePath() {
+  const active = prefs.ocrEnabled && prefs.ocrPath !== state.ocrPath.trim();
+  return ocrStatus() + (active ? sub(`当前使用 ${prefs.ocrPath}`) : "");
+}
+function renderOcr() {
+  const checking = state.ocrStatus === "checking";
+  return head("OCR 搜索") +
+    group("截图文字搜索", row("启用 OCR 搜索", "启用前需要配置并验证本地 OCR 模型。", toggle("启用 OCR 搜索", "ocrEnabled", prefs.ocrEnabled, checking), "scan")) +
+    group("本地模型", `<div class="inset stack"><div class="field"><label for="ocr-path">模型文件夹</label><div class="inline"><input class="wide path" id="ocr-path" value="${escapeHtml(state.ocrPath)}" placeholder="D:\\OCR\\PP-OCRv6-tiny"${checking ? " disabled" : ""}>${btn("浏览…", "browse-ocr", { id: "browse-ocr", symbol: "folder", disabled: checking })}${btn("应用", "apply-ocr", { id: "apply-ocr", disabled: checking })}</div><div id="ocr-status" aria-live="polite">${ocrStatusWithActivePath()}</div></div></div>` +
+      `<div class="inset stack"><div><div class="label">ModelScope · PP-OCRv6 tiny</div>${sub("将检测模型、识别模型和字典放在同一个目录。")}</div><div class="download-list">${models.map(([label, path]) => `<a class="plain-link" href="${modelBase}${path}" target="_blank" rel="noopener noreferrer">${label}${icon("external-link")}</a>`).join("")}</div></div>`) +
+    group("快捷键", shortcutBlock("ocrKey", "OCR 快捷键", "")) + feedback("ocr");
+}
+function renderConfig() {
+  return head("配置文件") +
+    group("当前配置", `<div class="inset stack"><span class="path">${escapeHtml(prefs.configPath)}</span><div class="inline">${btn("更换位置…", "choose-config", { id: "choose-config", symbol: "folder" })}${state.nextConfig ? sub(`下次启动使用 ${state.nextConfig}`) : ""}</div></div>`) +
+    group("完整配置", row("设置备份", "导入将替换当前配置。", `<div class="actions">${btn("导入配置…", "import-config", { id: "import-config", symbol: "folder" })}${btn("导出配置…", "export-config", { symbol: "download" })}</div>`, "", true)) +
+    group("搜索引擎包", row("搜索引擎与置顶顺序", "导入会合并自定义引擎与置顶顺序。", `<div class="actions">${btn("导入引擎…", "import-engines", { id: "import-engines", symbol: "folder" })}${btn("导出引擎…", "export-engines", { symbol: "download" })}</div>`, "", true)) +
+    feedback("config");
+}
+const views = {
+  general: renderGeneral, appearance: renderAppearance, engines: renderEngines,
+  shortcuts: renderShortcuts, browser: renderBrowser, history: renderHistory, ocr: renderOcr, config: renderConfig,
+};
+function openDialog(title, body, actionLabel, action, { focus = "", cancel = "取消" } = {}) {
+  const origin = document.activeElement;
+  dialog.innerHTML = `<div class="dialog-body"><h2 id="dialog-title">${escapeHtml(title)}</h2>${body}</div><div class="dialog-footer">
+    <button type="button" class="button" id="dialog-cancel">${escapeHtml(cancel)}</button>${action ? `<button type="button" class="button accent" id="dialog-action">${escapeHtml(actionLabel)}</button>` : ""}</div>`;
+  dialog.setAttribute("aria-labelledby", "dialog-title");
+  if (uiLanguage() === "en") localize(dialog);
+  $("#dialog-cancel").onclick = () => dialog.close();
+  if (action) $("#dialog-action").onclick = () => {
+    const commit = action();
+    if (commit === false) return;
+    dialog.close();
+    if (typeof commit === "function") commit();
+  };
+  dialog.showModal();
+  $(focus || "#dialog-cancel").focus();
+  dialog.addEventListener("close", () => {
+    if (origin?.isConnected && (document.activeElement === document.body || dialog.contains(document.activeElement))) {
+      origin.focus({ preventScroll: true });
+    }
+  }, { once: true });
+}
+function updateSegment(selector, property, value) {
+  $$(selector).forEach((button) => button.setAttribute("aria-pressed", button.dataset[property] === value));
+}
+function setSize(size) {
+  $("#prototype").dataset.size = size;
+  updateSegment("[data-size-choice]", "sizeChoice", size);
+  const button = $("#expand");
+  const label = size === "large" ? "还原窗口" : "展开窗口";
+  button.title = localizeText(label);
+  button.setAttribute("aria-label", localizeText(label));
+  sourceAttributes.delete(button);
+  button.innerHTML = icon(size === "large" ? "minimize" : "maximize");
+}
+function setEdition(edition) {
+  if (state.edition === edition) return;
+  state.edition = edition;
+  updateSegment("[data-edition]", "edition", edition);
+  if (edition === "lite" && state.page === "ocr") {
+    changePage("shortcuts");
+  } else {
+    drawChrome();
+    if (state.page === "shortcuts") refresh();
+  }
+}
+function updateSwitch(button, key) {
+  prefs[key] = !prefs[key];
+  button.setAttribute("aria-checked", prefs[key]);
+}
+function setFont(family, file = "", preview = "") {
+  Object.assign(prefs, { font: family, fontFile: file, fontPreview: preview });
+  state.feedback.delete("font");
+}
+function chooseFont() {
+  const fonts = [["Microsoft YaHei UI", "微软雅黑 UI"], ["SimHei", "黑体"], ["SimSun", "宋体"], ["FangSong", "仿宋"], ["KaiTi", "楷体"], ["Segoe UI", "Segoe UI"]];
+  openDialog("选择系统字体", `<div class="field"><label for="font-choice">字体</label><select id="font-choice">${fonts.map(([value, label]) => option(value, label, prefs.font)).join("")}</select></div>
+  <div class="search-preview" id="dialog-font-preview"><span>鬱鑿齒 · Search 123</span></div>`, "应用", () => {
+    const select = $("#font-choice");
+    setFont(select.value);
+    return () => refresh("#choose-font");
+  }, { focus: "#font-choice" });
+  const select = $("#font-choice");
+  const preview = $("#dialog-font-preview");
+  function updatePreview() { preview.style.fontFamily = select.value; }
+  select.onchange = updatePreview;
+  updatePreview();
+}
+function pickFile(accept, callback) {
+  fileInput.value = "";
+  fileInput.accept = accept;
+  fileInput.onchange = () => {
+    const file = fileInput.files[0];
+    if (file) callback(file);
+  };
+  fileInput.click();
+}
+let loadedFont;
+async function loadFont(file) {
+  if (!/\.(ttf|otf|ttc|otc)$/i.test(file.name)) {
+    setFeedback("font", "请选择 Windows 字体文件。");
+    return;
+  }
+  try {
+    const font = await new FontFace("YiSouLocalPreview", await file.arrayBuffer()).load();
+    if (loadedFont) document.fonts.delete(loadedFont);
+    document.fonts.add(font);
+    loadedFont = font;
+    setFont(file.name, file.name, "YiSouLocalPreview");
+    if (state.page === "appearance") refresh("#font-file");
+  } catch {
+    setFeedback("font", "字体加载失败，已保留上一次可用字体。");
+  }
+}
+function closeMenu(restore = false) {
+  if (!state.engineMenu) return;
+  const anchor = state.engineMenu;
+  state.engineMenu = null;
+  menu.hidden = true;
+  anchor.setAttribute("aria-expanded", "false");
+  if (restore) anchor.focus({ preventScroll: true });
+}
+function openMenu(anchor, id) {
+  if (state.engineMenu === anchor) return closeMenu(true);
+  closeMenu();
+  const engine = engineById(id);
+  if (!engine) return;
+  const index = prefs.custom.findIndex((entry) => entry.id === id);
+  menu.innerHTML = [
+    btn("设为默认", "default-engine", { value: id, disabled: prefs.defaultEngine === id, symbol: "check" }),
+    btn(prefs.pins.includes(id) ? "取消置顶" : "置顶", "pin-engine", { value: id, symbol: "pin" }),
+    ...(index < 0 ? [] : [
+      btn("编辑", "edit-engine", { value: id }),
+      btn("上移", "move-up", { value: id, disabled: index === 0, symbol: "arrow-up" }),
+      btn("下移", "move-down", { value: id, disabled: index + 1 === prefs.custom.length, symbol: "arrow-down" }),
+      btn("删除", "delete-engine", { value: id, symbol: "trash", danger: true }),
+    ]),
+  ].join("");
+  state.engineMenu = anchor;
+  anchor.setAttribute("aria-expanded", "true");
+  menu.hidden = false;
+  const bounds = anchor.getBoundingClientRect();
+  const { offsetWidth: width, offsetHeight: height } = menu;
+  menu.style.left = `${Math.max(8, Math.min(bounds.right - width, innerWidth - width - 8))}px`;
+  const top = bounds.bottom + 4 + height < innerHeight
+    ? bounds.bottom + 4
+    : Math.min(bounds.top - height - 4, innerHeight - height - 8);
+  menu.style.top = `${Math.max(8, top)}px`;
+  $("button:not(:disabled)", menu)?.focus({ preventScroll: true });
+}
+function beginEditor(id) {
+  const engine = engineById(id);
+  closeMenu(true);
+  state.scroll.set("engines", content.scrollTop);
+  state.feedback.delete("icon");
+  state.editor = engine ? { ...engine, dirty: false } : { name: "", alias: "", url: "", color: "#005fb8", dirty: false };
+  refresh("#engine-name", 0);
+}
+function exitEditor(focus, reveal = false) {
+  state.editor = null;
+  refresh(focus, state.scroll.get("engines") || 0);
+  const target = $(focus);
+  if (!target) $("#engine-filter")?.focus({ preventScroll: true });
+  else if (reveal) target.scrollIntoView({ block: "nearest" });
+}
+function engineFieldError(field, message) {
+  const input = $(`#engine-${field}`);
+  input.setAttribute("aria-invalid", Boolean(message));
+  $(`#error-engine-${field}`).textContent = message;
+}
+function searchTemplate(url) {
+  try {
+    const parsed = new URL(url);
+    return /^https?:\/\//i.test(url) && /^https?:$/.test(parsed.protocol) &&
+      !parsed.username && !parsed.password && !/[\s\\]/u.test(url) &&
+      [parsed.pathname, parsed.search, parsed.hash].some((part) => part.includes("%s"));
+  } catch {
+    return false;
+  }
+}
+function engineDraft(testOnly) {
+  const draft = state.editor;
+  const name = draft.name.trim();
+  const alias = draft.alias.trim().replace(/^#/, "").toLowerCase();
+  const url = draft.url.trim();
+  const errors = {
+    name: testOnly || name ? "" : "请输入引擎名称。",
+    alias: testOnly || !alias ? "" : !/^[a-z0-9_-]+$/i.test(alias) ? "别名仅支持英文字母、数字、连字符和下划线。" :
+      engines().some((engine) => engine.id !== draft.id && engine.alias === alias) ? "已存在相同别名。" : "",
+    url: searchTemplate(url) ? "" : "请输入包含 %s 的有效 HTTP 或 HTTPS 搜索网址。",
+  };
+  Object.entries(errors).forEach(([field, message]) => engineFieldError(field, message));
+  const invalid = Object.keys(errors).find((field) => errors[field]);
+  if (invalid) {
+    $(`#engine-${invalid}`).focus();
+    return;
+  }
+  if (testOnly) {
+    const result = url.replaceAll("%s", encodeURIComponent("易搜"));
+    openDialog("测试搜索", `<p class="path">${escapeHtml(result)}</p>`, "", null, { cancel: "关闭" });
+    return;
+  }
+  const id = draft.id || `custom-${Date.now()}-${prefs.custom.length}`;
+  const result = { id, name, alias, url, color: draft.color, ...(draft.image ? { image: draft.image } : {}) };
+  if (draft.id) prefs.custom[prefs.custom.findIndex((engine) => engine.id === id)] = result;
+  else prefs.custom.push(result);
+  setFeedback("engine", `已保存 ${name}。`);
+  exitEditor(`#menu-${id}`, true);
+}
+function loadEngineIcon(file) {
+  if (!/\.(svg|png|jpe?g|bmp|ico|webp)$/i.test(file.name) || file.size > 8 * 1024 * 1024) {
+    setFeedback("icon", "请选择不超过 8 MB 的 SVG 或位图。");
+    return;
+  }
+  const reader = new FileReader();
+  const draft = state.editor;
+  reader.onload = () => {
+    const preview = new Image();
+    preview.onload = () => {
+      if (state.editor !== draft) return;
+      draft.image = reader.result;
+      draft.dirty = true;
+      $("#engine-icon-preview").innerHTML = brand(draft);
+      $("#remove-icon").disabled = false;
+      setFeedback("icon", file.name);
+    };
+    preview.onerror = () => {
+      if (state.editor === draft) setFeedback("icon", "无法读取图标，已保留上一次预览。");
+    };
+    preview.src = reader.result;
+  };
+  reader.onerror = () => {
+    if (state.editor === draft) setFeedback("icon", "无法读取图标。");
+  };
+  reader.readAsDataURL(file);
+}
+function engineAction(action, id) {
+  closeMenu(true);
+  const engine = engineById(id);
+  if (!engine) return;
+  const focus = `#menu-${id}`;
+  if (action === "edit-engine") return beginEditor(id);
+  if (action === "default-engine") prefs.defaultEngine = id;
+  if (action === "pin-engine") {
+    const index = prefs.pins.indexOf(id);
+    if (index < 0) prefs.pins.push(id);
+    else prefs.pins.splice(index, 1);
+  }
+  if (action === "move-up" || action === "move-down") {
+    const index = prefs.custom.indexOf(engine);
+    const next = index + (action === "move-up" ? -1 : 1);
+    if (index < 0 || next < 0 || next >= prefs.custom.length) return;
+    [prefs.custom[index], prefs.custom[next]] = [prefs.custom[next], prefs.custom[index]];
+  }
+  if (action === "delete-engine") {
+    const change = [prefs.defaultEngine === id ? "默认引擎将改为必应。" : "", prefs.selectionEngine === id ? "划词引擎将改为必应，原划词快捷键将清除。" : ""].filter(Boolean).join("");
+    return openDialog(`删除「${engine.name}」？`, sub(`此引擎将从列表和置顶位置移除。${change}`), "删除引擎", () => () => {
+      const controls = $$("[data-action=engine-menu]", $("#engine-list"));
+      const index = controls.findIndex((button) => button.dataset.value === id);
+      const next = (controls[index + 1] || controls[index - 1])?.id;
+      prefs.custom = prefs.custom.filter((item) => item.id !== id);
+      prefs.pins = prefs.pins.filter((pin) => pin !== id);
+      if (prefs.defaultEngine === id) prefs.defaultEngine = "bing";
+      if (prefs.selectionEngine === id) {
+        prefs.selectionEngine = "bing";
+        prefs.selection = "";
+      }
+      setFeedback("engine", `已删除 ${engine.name}。`);
+      refresh(next ? `#${next}` : "#engine-filter");
+    });
+  }
+  const messages = {
+    "default-engine": `已将 ${engine.name} 设为默认引擎。`,
+    "pin-engine": `${prefs.pins.includes(id) ? "已置顶" : "已取消置顶"} ${engine.name}。`,
+    "move-up": `已上移 ${engine.name}。`,
+    "move-down": `已下移 ${engine.name}。`,
+  };
+  setFeedback("engine", messages[action]);
+  refresh(focus);
+  $(focus)?.scrollIntoView({ block: "nearest" });
+}
+
+const shortcutNames = { main: "唤出易搜", selection: "划词搜索", clipboard: "剪贴板搜索", ocrKey: "OCR 搜索" };
+function startRecording(key) {
+  state.recording = { key, value: "", error: "", lastAlt: -Infinity };
+  refresh();
+  $("#key-capture").focus();
+}
+function stopRecording(save) {
+  const recording = state.recording;
+  if (!recording || (save && (!recording.value || recording.error))) return;
+  if (save) prefs[recording.key] = recording.value;
+  state.recording = null;
+  refresh(`#record-${recording.key}`);
+  if (save) setFeedback("keys", `已保存${shortcutNames[recording.key]}快捷键。`);
+}
+function recordValue(value, error = "") {
+  const active = state.recording;
+  const other = Object.keys(shortcutNames).find((key) =>
+    key !== active.key && prefs[key] === value && (state.edition === "full" || key !== "ocrKey"));
+  active.value = value;
+  active.error = error || (other ? `此组合键已用于「${shortcutNames[other]}」。` : value === "Alt+Tab" || value === "Ctrl+Alt+Delete" ? "此组合键已由系统保留。" : "");
+  $("#key-capture").innerHTML = value ? keys(value) : "按下快捷键";
+  $("#key-error").textContent = active.error;
+  $("#save-key").disabled = !value || Boolean(active.error);
+}
+function captureKey(event) {
+  if (!state.recording || event.repeat || event.isComposing) return false;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    stopRecording(false);
+    return true;
+  }
+  const modifiers = [["Alt", event.altKey], ["Ctrl", event.ctrlKey], ["Shift", event.shiftKey], ["Win", event.metaKey]];
+  if (event.key === "Alt" && event.code === "AltLeft" && state.recording.key === "main" && modifiers.filter(([, down]) => down).length === 1) {
+    event.preventDefault();
+    const now = performance.now();
+    if (now - state.recording.lastAlt < 500) recordValue("双击左 Alt");
+    state.recording.lastAlt = now;
+    return true;
+  }
+  if (["Alt", "Control", "Shift", "Meta", "AltGraph"].includes(event.key)) return false;
+  if (!modifiers.some(([, down]) => down) && ["Enter", "Tab", " "].includes(event.key)) return false;
+  event.preventDefault();
+  if (!modifiers.some(([, down]) => down)) {
+    recordValue("", "请同时按下 Ctrl、Alt、Shift 或 Win。");
+    return true;
+  }
+  const key = event.key.length === 1 ? (event.key === " " ? "Space" : event.key.toUpperCase()) : event.key;
+  recordValue([...modifiers.filter(([, down]) => down).map(([label]) => label), key].join("+"));
+  return true;
+}
+function refreshExcluded() {
+  $("#exclusion-items").innerHTML = exclusionChips();
+  $("#save-exclusions").disabled = sameExclusions();
+}
+function addExclusions(text) {
+  const entries = text.split(/[,，;\n]/).map((name) => name.trim().toLowerCase()).filter(Boolean);
+  if (!entries.length) return;
+  if (entries.some((name) => !/^[^\\/<>:"|?*]+\.exe$/i.test(name))) {
+    $("#exclusions-error").textContent = "请输入 .exe 文件名，例如 mstsc.exe。";
+    return;
+  }
+  state.exclusion = [...new Set([...state.exclusion, ...entries])];
+  $("#excluded-app").value = "";
+  $("#exclusions-error").textContent = "";
+  refreshExcluded();
+  $("#excluded-app").focus();
+}
+function applyBrowser() {
+  const path = state.browserPath.trim();
+  if (state.browser === "other" && !/^(?:[a-z]:\\|\\\\)[^<>:"|?*]+\.exe$/i.test(path)) {
+    $("#browser-error").textContent = "请输入完整的 Windows .exe 路径。";
+    $("#browser-path").focus();
+    return;
+  }
+  prefs.browser = state.browser;
+  prefs.browserPath = state.browser === "other" ? path : "";
+  $("#save-browser").disabled = true;
+  setFeedback("browser", "已应用浏览器设置。");
+}
+let historyTimer;
+function updateHistory() {
+  clearTimeout(historyTimer);
+  const results = $("#history-results");
+  if (results) results.innerHTML = historyResults();
+}
+function actOnHistory(action, id) {
+  const record = state.historyRows.find((item) => item.id === Number(id));
+  if (!record) return;
+  if (action === "repeat-search") {
+    const engine = engineById(record.engine) || engineById(prefs.defaultEngine);
+    const url = engine.url.replaceAll("%s", encodeURIComponent(record.query));
+    openDialog("再次搜索", `<div class="label">${escapeHtml(record.query)}</div><p class="path">${escapeHtml(url)}</p>`, "", null, { cancel: "关闭" });
+    if (prefs.history) {
+      const next = Math.max(0, ...state.historyRows.map((row) => row.id)) + 1;
+      state.historyRows = [{ ...record, id: next, source: "易搜", time: new Date() }, ...state.historyRows];
+      dialog.addEventListener("close", updateHistory, { once: true });
+    }
+    return;
+  }
+  const oldRows = $$("[data-history-row]");
+  const index = oldRows.findIndex((row) => row.id === `history-${id}`);
+  const adjacent = (oldRows[index + 1] || oldRows[index - 1])?.id;
+  state.historyRows = state.historyRows.filter((item) => item.id !== Number(id));
+  updateHistory();
+  (adjacent && $(`#${adjacent}`) || $("[data-history-row]") || $("#history-query"))?.focus({ preventScroll: true });
+  setFeedback("history", "已删除这条记录。");
+}
+function chooseModelFolder() {
+  openDialog("选择模型文件夹", `<div class="group">${demoFolders.map(([path, detail], index) => `<label class="row radio-row"><input type="radio" name="folder-choice" value="${index}"${index === 0 ? " checked" : ""}>${icon("folder")}<span class="copy"><span class="path">${escapeHtml(path)}</span><span class="subtle" style="display:block">${detail}</span></span></label>`).join("")}</div>`, "选择文件夹", () => {
+    state.ocrPath = demoFolders[Number($("input[name=folder-choice]:checked").value)][0];
+    state.ocrStatus = "initial";
+    return () => refresh("#apply-ocr");
+  }, { focus: "[name=folder-choice]:checked" });
+}
+function validateModel(enable) {
+  if (state.ocrStatus === "checking") return;
+  const path = state.ocrPath.trim().replace(/[\\/]+$/, "");
+  if (!path) {
+    if (!enable) {
+      prefs.ocrPath = "";
+      prefs.ocrEnabled = false;
+      state.ocrStatus = "initial";
+      setFeedback("ocr", "");
+      refresh("#ocr-path");
+      return;
+    }
+    setFeedback("ocr", "请先选择本地模型文件夹。");
+    $("#ocr-path").focus();
+    return;
+  }
+  state.ocrStatus = "checking";
+  refresh();
+  setTimeout(() => {
+    const choice = demoFolders.findIndex(([folder]) => folder.toLowerCase() === path.toLowerCase());
+    const result = ["ready", "missing", "checksum"][choice] || "unknown";
+    state.ocrStatus = result;
+    if (result === "ready") {
+      prefs.ocrPath = path;
+      if (enable) prefs.ocrEnabled = true;
+      setFeedback("ocr", enable ? "OCR 搜索已启用。" : "已应用模型目录。");
+    } else {
+      setFeedback("ocr", "");
+    }
+    if (state.page === "ocr") {
+      const focus = content.contains(document.activeElement) ? document.activeElement.id : "";
+      refresh(focus ? `#${CSS.escape(focus)}` : "#apply-ocr");
+    }
+  }, 520);
+}
+function changeOcr(button) {
+  if (prefs.ocrEnabled) {
+    updateSwitch(button, "ocrEnabled");
+    $("#ocr-status").innerHTML = ocrStatusWithActivePath();
+    setFeedback("ocr", "OCR 搜索已关闭。");
+    return;
+  }
+  if (state.ocrStatus === "ready" && prefs.ocrPath === state.ocrPath.trim()) {
+    updateSwitch(button, "ocrEnabled");
+    setFeedback("ocr", "OCR 搜索已启用。");
+    return;
+  }
+  validateModel(true);
+}
+function chooseConfig() {
+  openDialog("更换配置位置", `<div class="field"><label for="next-config">配置文件路径</label><input class="path" id="next-config" value="${escapeHtml(state.nextConfig || prefs.configPath)}"><p class="error" id="config-error" role="alert"></p></div>`, "确认", () => {
+    const next = $("#next-config").value.trim();
+    if (!/^(?:[a-z]:\\|\\\\)[^<>:"|?*]+\.json$/i.test(next)) {
+      $("#config-error").textContent = "请输入完整的 Windows .json 路径。";
+      $("#next-config").focus();
+      return false;
+    }
+    state.nextConfig = next;
+    return () => refresh("#choose-config");
+  }, { focus: "#next-config" });
+}
+function downloadJson(name, data) {
+  const href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(href), 500);
+  setFeedback("config", `已导出 ${name}。`);
+}
+function validCustom(item) {
+  return item && typeof item.name === "string" && item.name.trim() &&
+    typeof item.id === "string" && /^custom-[a-z0-9-]+$/i.test(item.id) &&
+    typeof item.alias === "string" && /^[a-z0-9_-]*$/i.test(item.alias) &&
+    typeof item.url === "string" && searchTemplate(item.url) &&
+    typeof item.color === "string" && /^#[0-9a-f]{6}$/i.test(item.color);
+}
+function previewConfig(data, pack) {
+  if (!data || data.schema !== 1) throw new Error("文件版本无效。");
+  const incoming = pack ? data.engines : data.preferences?.custom;
+  if (!Array.isArray(incoming) || incoming.some((item) => !validCustom(item))) throw new Error("自定义引擎数据无效。");
+  if (new Set(incoming.map(({ id }) => id)).size !== incoming.length) throw new Error("引擎标识重复。");
+  const sanitized = incoming.map(({ id, name, alias, url, color, image }) => ({
+    id, name, alias: alias.toLowerCase(), url, color,
+    ...(/^data:image\/(?:svg\+xml|png|jpeg|bmp|x-icon|vnd\.microsoft\.icon|webp);base64,[a-z0-9+/=]+$/i.test(image || "") ? { image } : {}),
+  }));
+  const merged = new Map(pack ? prefs.custom.map((item) => [item.id, item]) : []);
+  sanitized.forEach((item) => merged.set(item.id, item));
+  const custom = [...merged.values()];
+  const all = [...builtIns, ...custom];
+  const aliases = all.map(({ alias }) => alias).filter(Boolean);
+  if (new Set(aliases).size !== aliases.length) throw new Error("引擎别名重复。");
+  const values = pack ? data.pins : data.preferences?.pins;
+  const ids = new Set(all.map(({ id }) => id));
+  if (!Array.isArray(values) || values.some((id) => !ids.has(id))) throw new Error("置顶列表包含无效引擎。");
+  const pins = [...new Set(pack ? [...values, ...prefs.pins] : values)];
+  const imported = {};
+  if (!pack) {
+    for (const [key, value] of Object.entries(prefs)) {
+      if (typeof value === "boolean" && typeof data.preferences[key] === "boolean") imported[key] = data.preferences[key];
+      if (typeof value === "string" && typeof data.preferences[key] === "string") imported[key] = data.preferences[key];
+    }
+    if (!ids.has(imported.defaultEngine)) imported.defaultEngine = "bing";
+    if (!ids.has(imported.selectionEngine)) imported.selectionEngine = "bing";
+    if (Array.isArray(data.preferences.excluded)) imported.excluded = data.preferences.excluded.filter((value) => typeof value === "string");
+    if (!demoFolders.some(([path], index) => index === 0 && path === imported.ocrPath)) imported.ocrEnabled = false;
+  }
+  return { ...imported, custom, pins };
+}
+async function importConfig(file, pack) {
+  try {
+    const candidate = previewConfig(JSON.parse(await file.text()), pack);
+    openDialog(pack ? "导入搜索引擎包？" : "替换当前配置？", sub(`${file.name} · ${pack ? "合并自定义引擎和置顶顺序。" : "替换此原型中的当前设置。"}`), "导入", () => () => {
+      Object.assign(prefs, candidate);
+      if (!pack) {
+        state.language = prefs.language;
+        state.browser = prefs.browser;
+        state.browserPath = prefs.browserPath;
+        state.exclusion = [...prefs.excluded];
+        state.ocrPath = prefs.ocrPath;
+        state.ocrStatus = prefs.ocrPath === demoFolders[0][0] ? "ready" : "initial";
+      }
+      setFeedback("config", `已导入 ${file.name}。`);
+      if (state.page === "config") refresh(pack ? "#import-engines" : "#import-config");
+    });
+  } catch (error) {
+    setFeedback("config", `导入失败。${error.message}`);
+  }
+}
+
+const actions = {
+  navigate: (page) => showPage(page),
+  expand: () => setSize($("#prototype").dataset.size === "large" ? "regular" : "large"),
+  toggle: (key, button) => {
+    if (key === "ocrEnabled") return changeOcr(button);
+    updateSwitch(button, key);
+  },
+  "apply-language": () => {
+    prefs.language = state.language;
+    document.documentElement.lang = uiLanguage();
+    setFeedback("general", uiLanguage() === "en" ? "Language preference applied." : "已应用界面语言。");
+    drawChrome();
+    refresh("#language");
+    localize($(".preview-bar"));
+  },
+  "choose-font": chooseFont,
+  "font-file": () => pickFile(".ttf,.otf,.ttc,.otc", loadFont),
+  "reset-font": () => {
+    setFont("Microsoft YaHei UI");
+    refresh("#choose-font");
+  },
+  names: (value) => {
+    prefs.names = value === "true";
+    refresh(`#names-${value}`);
+  },
+  "add-engine": () => beginEditor(),
+  "engine-menu": (id, anchor) => openMenu(anchor, id),
+  "cancel-engine": () => guardEditor(() => exitEditor(state.editor.id ? `#menu-${state.editor.id}` : "#add-engine")),
+  "test-engine": () => engineDraft(true),
+  "icon-file": () => pickFile(".svg,.png,.jpg,.jpeg,.bmp,.ico,.webp", loadEngineIcon),
+  "remove-icon": () => {
+    delete state.editor.image;
+    state.editor.dirty = true;
+    state.feedback.delete("icon");
+    refresh("#icon-file");
+  },
+  "clear-engines": () => {
+    state.engineFilter = "";
+    refresh("#engine-filter");
+  },
+  "start-record": startRecording,
+  "cancel-record": () => stopRecording(false),
+  "save-key": () => stopRecording(true),
+  "clear-key": (key) => {
+    prefs[key] = key === "main" ? "双击左 Alt" : "";
+    refresh(`#record-${key}`);
+  },
+  "goto-ocr": () => {
+    showPage("ocr", "#record-ocrKey");
+    $("#record-ocrKey")?.scrollIntoView({ block: "nearest" });
+  },
+  "add-exclusion": () => addExclusions($("#excluded-app").value),
+  "remove-exclusion": (index) => {
+    state.exclusion.splice(Number(index), 1);
+    refreshExcluded();
+    $("#excluded-app").focus();
+  },
+  "save-exclusions": () => {
+    prefs.excluded = [...state.exclusion];
+    $("#save-exclusions").disabled = true;
+    setFeedback("keys", "已应用排除列表。");
+  },
+  "browse-browser": () => pickFile(".exe", (file) => {
+    state.browserPath = `C:\\Program Files\\${file.name}`;
+    if (state.page === "browser") refresh("#browser-path");
+  }),
+  "save-browser": applyBrowser,
+  "clear-history": () => {
+    state.historyQuery = state.historySource = "";
+    state.historyPage = 0;
+    refresh("#history-query");
+  },
+  "history-page": (direction) => {
+    state.historyPage += Number(direction);
+    updateHistory();
+    const row = $("[data-history-row]");
+    row?.focus({ preventScroll: true });
+    row?.scrollIntoView({ block: "start" });
+  },
+  "repeat-search": (id) => actOnHistory("repeat-search", id),
+  "delete-history": (id) => actOnHistory("delete-history", id),
+  "browse-ocr": chooseModelFolder,
+  "apply-ocr": () => validateModel(false),
+  "choose-config": chooseConfig,
+  "import-config": () => pickFile(".json,application/json", (file) => importConfig(file, false)),
+  "export-config": () => downloadJson("yisou-demo-settings.json", { schema: 1, preferences: prefs }),
+  "import-engines": () => pickFile(".json,application/json", (file) => importConfig(file, true)),
+  "export-engines": () => downloadJson("yisou-demo-engines.json", { schema: 1, engines: prefs.custom, pins: prefs.pins }),
+};
+for (const name of ["default-engine", "pin-engine", "edit-engine", "delete-engine", "move-up", "move-down"]) {
+  actions[name] = (id) => engineAction(name, id);
+}
+
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("button");
+  if (!menu.contains(event.target) && button !== state.engineMenu) closeMenu();
+  if (!button || button.disabled) return;
+  if (button.dataset.edition) setEdition(button.dataset.edition);
+  if (button.dataset.sizeChoice) setSize(button.dataset.sizeChoice);
+  const action = actions[button.dataset.action];
+  if (action) action(button.dataset.value, button);
+});
+document.addEventListener("submit", (event) => {
+  if (event.target.id !== "engine-form") return;
+  event.preventDefault();
+  engineDraft(false);
+});
+document.addEventListener("input", (event) => {
+  const input = event.target;
+  if (input.dataset.draft && state.editor) {
+    state.editor[input.dataset.draft] = input.value;
+    state.editor.dirty = true;
+    if (input.id === "engine-name" || input.id === "engine-color") $("#engine-icon-preview").innerHTML = brand(state.editor);
+    if (input.id !== "engine-color") engineFieldError(input.dataset.draft, "");
+  }
+  if (input.id === "engine-filter") {
+    state.engineFilter = input.value;
+    $("#engine-list").innerHTML = engineRows();
+  }
+  if (input.id === "history-query" || input.id === "history-source") {
+    if (event.isComposing) return;
+    if (input.id === "history-query") state.historyQuery = input.value;
+    else state.historySource = input.value;
+    state.historyPage = 0;
+    clearTimeout(historyTimer);
+    historyTimer = setTimeout(updateHistory, 140);
+  }
+  if (input.id === "browser-path") {
+    state.browserPath = input.value;
+    $("#save-browser").disabled = !browserChanged();
+    $("#browser-error").textContent = "";
+  }
+  if (input.id === "ocr-path") {
+    state.ocrPath = input.value;
+    state.ocrStatus = "initial";
+    $("#ocr-status").innerHTML = ocrStatusWithActivePath();
+    setFeedback("ocr", "");
+  }
+});
+document.addEventListener("change", (event) => {
+  const input = event.target;
+  if (input.id === "language") {
+    state.language = input.value;
+    $("#apply-language").disabled = prefs.language === state.language;
+  }
+  if (input.name === "browser") {
+    state.browser = input.value;
+    state.feedback.delete("browser");
+    refresh(`#browser-${input.value}`);
+  }
+  if (input.id === "selection-engine") prefs.selectionEngine = input.value;
+  if (input.id === "selection-action") prefs.selectionAction = input.value;
+});
+document.addEventListener("paste", (event) => {
+  if (event.target.id !== "excluded-app") return;
+  const value = event.clipboardData.getData("text");
+  if (!/[,，;\n]/.test(value)) return;
+  event.preventDefault();
+  addExclusions(value);
+});
+document.addEventListener("keydown", (event) => {
+  if (dialog.open || event.isComposing) return;
+  if (state.engineMenu) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeMenu(true);
+      return;
+    }
+    if (event.key === "Tab") {
+      closeMenu(true);
+      return;
+    }
+    if (["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      const buttons = $$("button:not(:disabled)", menu);
+      const current = buttons.indexOf(document.activeElement);
+      const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 :
+        (current + (event.key === "ArrowUp" ? -1 : 1) + buttons.length) % buttons.length;
+      buttons[next]?.focus();
+      return;
+    }
+  }
+  if (captureKey(event)) return;
+  const navigation = event.target.closest(".nav");
+  if (navigation && ["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+    event.preventDefault();
+    const items = $$(".nav", nav);
+    const index = items.indexOf(navigation);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 :
+      (index + (event.key === "ArrowUp" ? -1 : 1) + items.length) % items.length;
+    items[next].focus();
+    return;
+  }
+  if (event.key === "Escape" && state.editor) {
+    actions["cancel-engine"]();
+    return;
+  }
+  if (event.key === "Enter" && event.target.id === "excluded-app") {
+    event.preventDefault();
+    addExclusions(event.target.value);
+  }
+  const row = event.target.closest("[data-history-row]");
+  if (row && event.target === row && ["Enter", "Delete"].includes(event.key)) {
+    event.preventDefault();
+    actOnHistory(event.key === "Enter" ? "repeat-search" : "delete-history", row.dataset.historyRow);
+  }
+});
+content.addEventListener("scroll", () => closeMenu(), { passive: true });
+window.addEventListener("resize", () => closeMenu(true));
+
+document.documentElement.lang = uiLanguage();
+drawChrome();
+refresh();
+</script>
+</body>
+</html>

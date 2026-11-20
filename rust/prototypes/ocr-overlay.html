@@ -1,0 +1,661 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>易搜 · 截图 OCR 原型</title>
+<style>
+  :root { font: 14px/1.5 Inter, "Segoe UI", "Microsoft YaHei UI", sans-serif; color: #e5e8ee; background: #171b24; }
+  * { box-sizing: border-box; }
+  body { margin: 0; display: grid; grid-template-rows: 58px minmax(0, 1fr); height: 100dvh; overflow: hidden; }
+  button { font: inherit; color: inherit; border: 0; background: transparent; cursor: pointer; transition: background 0.2s ease, color 0.2s ease; }
+  button:focus-visible, .grip:focus-visible { outline: 2px solid #83b9ff; outline-offset: 2px; }
+  button:disabled { cursor: not-allowed; }
+  svg { width: 17px; height: 17px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
+  .symbols { position: absolute; width: 0; height: 0; overflow: hidden; }
+  [hidden] { display: none !important; }
+
+  .topbar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 0 24px; background: #181b21; border-bottom: 1px solid #30343c; }
+  .brand, .top-actions, .tabs, .instrument, .status, .toolbar { display: flex; align-items: center; }
+  .brand { gap: 10px; white-space: nowrap; font-weight: 650; }
+  .brand-mark { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; background: #264575; color: #d3e7ff; }
+  .brand-caption { color: #9ea7b5; font-size: 12px; font-weight: 400; }
+
+  .tabs { gap: 2px; padding: 3px; border-radius: 8px; background: #111317; }
+  .tabs button { min-width: 62px; height: 29px; border-radius: 5px; font-size: 12px; color: #acb4c0; padding: 0 8px; }
+  .tabs button[aria-pressed="true"] { color: #f3f5f8; background: #313640; box-shadow: 0 1px 2px #0006; }
+  .tabs button:hover, .instrument:hover { color: white; }
+
+  .top-actions { justify-content: end; gap: 5px; }
+  .instrument { justify-content: center; width: 34px; height: 34px; color: #bac2cf; border-radius: 6px; }
+  .instrument:hover { background: #303641; }
+
+  #stage { position: relative; isolation: isolate; overflow: hidden; background: #475a70; touch-action: none; user-select: none; }
+  #stage[data-drag="frame"] { cursor: crosshair; }
+  #stage[data-drag="text"] { cursor: text; }
+  .window { position: absolute; inset: 7% 9%; display: flex; flex-direction: column; overflow: hidden; border-radius: 8px; background: #f8f9fc; color: #283242; box-shadow: 0 20px 65px #13203155, 0 0 0 1px #ffffff30; }
+  .window-bar { height: 43px; flex: none; padding: 0 17px; display: flex; align-items: center; gap: 9px; border-bottom: 1px solid #dee3ec; background: #eef1f7; font-size: 12px; color: #4d5a6d; }
+  .window-bar svg { width: 15px; height: 15px; }
+  .window-controls { margin-left: auto; color: #5f6a7d; display: flex; gap: 18px; align-items: center; }
+  .window-controls svg { width: 12px; height: 12px; }
+  .source { width: min(760px, 100%); padding: 36px 42px 45px; margin: 0 auto; }
+  .source h1 { margin: 0 0 16px; color: #182232; font-size: 30px; line-height: 1.25; font-weight: 720; }
+  .source h2 { margin: 23px 0 8px; color: #202c3c; font-size: 16px; }
+  .source p { margin: 0 0 10px; font-size: 15px; line-height: 1.9; }
+  .source .date { margin-bottom: 18px; color: #606d80; font-size: 12px; }
+  .source hr { margin: 17px 0; border: 0; border-top: 1px solid #dce2eb; }
+  .document-note { padding-left: 13px; border-left: 2px solid #93a8ca; }
+  #terminal { width: 100%; padding-top: 35px; font-family: "IBM Plex Mono", Consolas, "Microsoft YaHei UI", monospace; }
+  #terminal p { font-size: 14px; line-height: 1.68; margin: 0; overflow-wrap: anywhere; }
+  #terminal .command { color: #9ec5ff; }
+  #terminal .result { color: #83d1ac; }
+  #terminal .term-note { color: #9eaabd; }
+  #terminal .term-gap { margin-top: 16px; }
+  .window.terminal { background: #222630; color: #e0e6f1; }
+  .terminal .window-bar { background: #292e38; color: #c3cddd; border-color: #3a404c; }
+  .terminal .window-controls { color: #b4bfce; }
+
+  .shade, .marks { position: absolute; inset: 0; pointer-events: none; }
+  .shade { background: rgb(13 17 24 / .54); }
+  .mark { position: absolute; }
+  .mark.idle { background: rgb(75 113 163 / .37); }
+  .mark.hover { border-radius: 3px; box-shadow: inset 0 0 0 1px rgb(60 115 198 / .72); }
+  .mark.active { border-radius: 2px; background: rgb(49 117 231 / .24); }
+  .terminal ~ .marks .mark.idle { background: rgb(155 192 249 / .37); }
+  .terminal ~ .marks .mark.hover { box-shadow: inset 0 0 0 1px rgb(144 185 246 / .7); }
+  .terminal ~ .marks .mark.active { background: rgb(69 137 248 / .34); }
+
+  #frame { position: absolute; border: 1px solid #75acff; border-radius: 2px; box-shadow: 0 0 0 1px #1556a99e; pointer-events: none; }
+  #frame.sizing { border-color: #a4c9ff; }
+  .grip { position: absolute; width: 24px; height: 24px; display: grid; place-items: center; transform: translate(-50%, -50%); pointer-events: auto; border-radius: 5px; }
+  .nw { left: 0; top: 0; cursor: nwse-resize; }
+  .north { left: 50%; top: 0; cursor: ns-resize; }
+  .ne { left: 100%; top: 0; cursor: nesw-resize; }
+  .east { left: 100%; top: 50%; cursor: ew-resize; }
+  .se { left: 100%; top: 100%; cursor: nwse-resize; }
+  .south { left: 50%; top: 100%; cursor: ns-resize; }
+  .sw { left: 0; top: 100%; cursor: nesw-resize; }
+  .west { left: 0; top: 50%; cursor: ew-resize; }
+
+  /* =========================================
+     统一的手柄样式：大小统一，带主题色边框
+     ========================================= */
+  .grip::after {
+    content: "";
+    width: 10px;
+    height: 10px;
+    box-sizing: border-box;
+    background: #eff6ff;
+    border: 1.5px solid #327ee7; /* 主题色边框 */
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  }
+
+  /* 悬浮、聚焦、拖拽中：放大且高亮边框 */
+  .grip:hover::after,
+  .grip:focus-visible::after,
+  #frame.sizing .grip::after {
+    background: #bdddff;
+    border-color: #75acff;
+    transform: scale(1.3);
+  }
+  /* ========================================= */
+
+  .status, .toolbar { position: absolute; z-index: 2; background: rgba(30, 34, 43, 0.85); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 8px 24px rgba(0,0,0,0.4); border-radius: 8px; }
+  .status { height: 29px; padding: 0 9px; gap: 7px; font-size: 12px; white-space: nowrap; pointer-events: none; }
+  .status svg { width: 14px; height: 14px; }
+  .status[data-state="ready"] svg { color: #83d1ac; }
+  .status[data-state="busy"] svg { color: #93bcff; animation: spin 870ms linear infinite; }
+  .status[data-state="empty"] svg, .status[data-state="resize"] svg { color: #aeb9ca; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .toolbar { height: 46px; gap: 4px; padding: 5px; white-space: nowrap; border-color: #ffffff24; box-shadow: 0 3px 10px #0004; }
+  .toolbar button { display: inline-flex; flex: none; justify-content: center; align-items: center; width: 34px; height: 34px; padding: 0; border-radius: 6px; color: #c7cfdb; }
+  .toolbar button:hover:not(:disabled) { background: #ffffff1a; color: #fff; }
+  .toolbar button:disabled { background: transparent; color: #778191; transition: none; }
+  .toolbar .primary:enabled { background: #80b5ff; color: #152742; }
+  .toolbar .primary:enabled:hover { background: #a2caff; }
+  .toolbar-divider { flex: none; width: 1px; height: 18px; background: #ffffff24; }
+
+  #toast { position: absolute; z-index: 4; bottom: 14px; left: 50%; transform: translateX(-50%); padding: 6px 12px; max-width: calc(100% - 20px); border-radius: 6px; background: #222731; border: 1px solid #505a69; font-size: 12px; }
+  dialog { width: min(430px, calc(100% - 24px)); padding: 16px; border: 1px solid #525c6c; border-radius: 8px; background: #222731; color: #edf1f7; box-shadow: 0 16px 48px #0006; }
+  dialog::backdrop { background: #090d1677; }
+  dialog h2 { margin: 0 0 10px; font-size: 16px; }
+  dialog textarea { display: block; width: 100%; height: 112px; resize: vertical; padding: 8px; border-radius: 4px; border: 1px solid #586373; background: #181c24; color: inherit; font: inherit; }
+  dialog form { display: flex; justify-content: flex-end; gap: 6px; margin-top: 12px; }
+  dialog button { display: inline-flex; justify-content: center; align-items: center; gap: 7px; height: 34px; padding: 0 12px; border-radius: 5px; font-size: 13px; }
+  dialog .primary { background: #80b5ff; color: #142540; font-weight: 650; }
+  @media (max-width: 610px) {
+    body { grid-template-rows: 49px minmax(0, 1fr); }
+    .topbar { padding: 0 10px; gap: 4px; }
+    .brand-caption { display: none; }
+    .tabs button { min-width: 48px; }
+    .window { inset: 6% 4% 10%; }
+    .source { padding: 23px 19px; }
+    .source h1 { font-size: 23px; margin-bottom: 9px; }
+    .source p { font-size: 13px; line-height: 1.72; }
+    #terminal p { font-size: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .status[data-state="busy"] svg { animation: none; }
+    .toolbar button { transition: none; }
+  }
+</style>
+</head>
+<body>
+<svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="scan" viewBox="0 0 24 24"><path d="M4 7V5a1 1 0 0 1 1-1h2m10 0h2a1 1 0 0 1 1 1v2m0 10v2a1 1 0 0 1-1 1h-2M7 20H5a1 1 0 0 1-1-1v-2M8 9h8m-4 0v7"/></symbol>
+  <symbol id="reset" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 1 9 9 9.75 9.75 0 0 1-6.74-2.74L3 15m0 5v-5h5"/></symbol>
+  <symbol id="maximize" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m13-5h3a2 2 0 0 1 2 2v3m0 8v3a2 2 0 0 1-2 2h-3m-8 0H5a2 2 0 0 1-2-2v-3"/></symbol>
+  <symbol id="minimize" viewBox="0 0 24 24"><path d="M8 3v3a2 2 0 0 1-2 2H3m13-5v3a2 2 0 0 0 2 2h3m0 8h-3a2 2 0 0 0-2 2v3m-8 0v-3a2 2 0 0 0-2-2H3"/></symbol>
+  <symbol id="done" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></symbol>
+  <symbol id="loader" viewBox="0 0 24 24"><path d="M20.5 12a8.5 8.5 0 1 1-8.5-8.5"/></symbol>
+  <symbol id="copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></symbol>
+  <symbol id="search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"/><path d="m15 15 5 5"/></symbol>
+  <symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  <symbol id="file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Zm0 0v6h6M8 13h8m-8 4h6"/></symbol>
+  <symbol id="prompt" viewBox="0 0 24 24"><path d="m5 6 6 6-6 6m8 0h6"/></symbol>
+  <symbol id="dash" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="square" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/></symbol>
+</svg>
+<header class="topbar">
+  <div class="brand"><span class="brand-mark"><svg aria-hidden="true"><use href="#scan"/></svg></span>易搜 <span class="brand-caption">截图 OCR 原型</span></div>
+
+  <div class="tabs" aria-label="样本">
+    <button type="button" data-sample="document" aria-pressed="true">文档</button>
+    <button type="button" data-sample="terminal" aria-pressed="false">终端</button>
+  </div>
+
+  <div class="top-actions">
+    <button class="instrument" id="reset-frame" type="button" title="还原选区" aria-label="还原选区"><svg aria-hidden="true"><use href="#reset"/></svg></button>
+    <button class="instrument" id="fullscreen" type="button" title="进入全屏" aria-label="进入全屏"><svg aria-hidden="true"><use href="#maximize"/></svg></button>
+  </div>
+</header>
+<main id="stage" aria-label="截图选区预览">
+  <section id="window" class="window" aria-label="截图样本">
+    <div class="window-bar" aria-hidden="true">
+      <svg><use id="window-icon" href="#file"/></svg><span id="window-title">设计笔记.txt · 记事本</span>
+      <span class="window-controls"><svg><use href="#dash"/></svg><svg><use href="#square"/></svg><svg><use href="#close"/></svg></span>
+    </div>
+    <article class="source" id="document">
+      <h1 data-ocr>易搜开发笔记</h1>
+      <p class="date" data-ocr>易搜研发笔记 · 2026 年 11 月 20 日</p>
+      <hr>
+      <h2 data-ocr>本周验证记录</h2>
+      <p data-ocr>本轮覆盖全屏中文、中英文混排和多行终端日志。测试环境为 Windows 11，屏幕分辨率为 3840 × 2088。</p>
+      <p data-ocr>全屏样本包含正文、路径和错误码。复测重点是密排行间距，以及边界汉字的识别结果。</p>
+      <p class="document-note" data-ocr>构建结果已保存至 build/editions/full/YiSou.exe。</p>
+      <h2 data-ocr>补充样本</h2>
+      <p data-ocr>Windows 路径、中英文混排、标点和终端错误码 0x80070003。</p>
+      <p data-ocr>回归记录包含首次框选、扩大范围和恢复原范围三个阶段。</p>
+    </article>
+    <article class="source" id="terminal" hidden>
+      <p class="command" data-ocr>PS D:\Projects\YiSou&gt; cargo test --release --features ocr</p>
+      <p class="term-note" data-ocr>Compiling yisou v0.1.0 (D:\Projects\YiSou\rust)</p>
+      <p data-ocr>Running tests\native_ui.rs</p>
+      <p class="term-gap" data-ocr>test native_search_popup_preferences_and_second_launch ... ok</p>
+      <p data-ocr>test text_outlines_snap_small_slopes ... ok</p>
+      <p data-ocr>test real_ocr_omits_cut_chinese_characters ... ok</p>
+      <p class="result" data-ocr>test result: ok. 26 passed, 0 failed, 1 ignored.</p>
+      <p class="term-gap command" data-ocr>PS D:\Projects\YiSou&gt; Get-Process YiSou</p>
+      <p data-ocr>Id     Path</p>
+      <p data-ocr>59036  D:\Projects\YiSou\build\editions\full\YiSou.exe</p>
+      <p class="term-note" data-ocr>最好是测试全屏的文本，注意相邻行的识别框。</p>
+      <p class="term-note" data-ocr>连接超时，请检查代理设置。HTTP 504</p>
+    </article>
+  </section>
+  <div class="shade" id="shade"></div>
+  <div class="marks" id="marks" aria-hidden="true"></div>
+  <div id="frame" aria-label="截取区域">
+    <button class="grip nw" data-edge="lt" aria-label="调整左上角"></button>
+    <button class="grip cardinal north" data-edge="t" aria-label="调整上边缘"></button>
+    <button class="grip ne" data-edge="rt" aria-label="调整右上角"></button>
+    <button class="grip cardinal east" data-edge="r" aria-label="调整右边缘"></button>
+    <button class="grip se" data-edge="rb" aria-label="调整右下角"></button>
+    <button class="grip cardinal south" data-edge="b" aria-label="调整下边缘"></button>
+    <button class="grip sw" data-edge="lb" aria-label="调整左下角"></button>
+    <button class="grip cardinal west" data-edge="l" aria-label="调整左边缘"></button>
+  </div>
+  <div id="status" class="status" role="status" data-state="ready"><svg aria-hidden="true"><use href="#done"/></svg><span>识别完成</span></div>
+
+  <div id="toolbar" class="toolbar" role="group" aria-label="识别结果操作">
+    <button id="copy-text" type="button" aria-label="复制所选文字" aria-keyshortcuts="Control+C" title="请先选择文字" disabled><svg aria-hidden="true"><use href="#copy"/></svg></button>
+    <button id="search-text" class="primary" type="button" aria-label="搜索所选文字" aria-keyshortcuts="Enter" title="请先选择文字" disabled><svg aria-hidden="true"><use href="#search"/></svg></button>
+    <span class="toolbar-divider" aria-hidden="true"></span>
+    <button id="cancel" type="button" aria-label="取消选区" aria-keyshortcuts="Escape" title="取消选区 · Esc"><svg aria-hidden="true"><use href="#close"/></svg></button>
+  </div>
+  <div id="toast" role="status" hidden></div>
+</main>
+<dialog id="search-dialog" aria-labelledby="search-heading">
+  <h2 id="search-heading">搜索预览</h2>
+  <textarea id="query" aria-label="搜索词" readonly></textarea>
+  <form method="dialog"><button type="submit" class="primary">返回</button></form>
+</dialog>
+<script>
+  const get = id => document.getElementById(id);
+  const stage = get('stage');
+  const sourceWindow = get('window');
+  const frame = get('frame');
+  const shade = get('shade');
+  const marks = get('marks');
+  const toolbar = get('toolbar');
+  const status = get('status');
+  const searchDialog = get('search-dialog');
+  const copy = get('copy-text');
+  const search = get('search-text');
+  const segmenter = new Intl.Segmenter('zh', { granularity: 'grapheme' });
+  const labels = { ready: '识别完成', busy: '正在识别', resize: '调整选区', empty: '未识别到文字' };
+  let sample = 'document';
+  let box = null;
+  let gesture = null;
+  let glyphs = [];
+  let visible = [];
+  let rows = [];
+  let selected = null;
+  let hovered = null;
+  let state = 'ready';
+  let runTimer;
+  let toastTimer;
+  let previousSize;
+  const cachedBoxes = new Set();
+
+  const limit = (n, min, max) => Math.max(min, Math.min(max, n));
+  const point = event => {
+    const rect = stage.getBoundingClientRect();
+    return {
+      x: Math.round(limit(event.clientX - rect.left, 0, rect.width)),
+      y: Math.round(limit(event.clientY - rect.top, 0, rect.height))
+    };
+  };
+  const inside = (p, rect) => p.x >= rect.l && p.x <= rect.r && p.y >= rect.t && p.y <= rect.b;
+  const place = (element, l, t, width, height) => {
+    Object.assign(element.style, { left: `${l}px`, top: `${t}px`, width: `${width}px`, height: `${height}px` });
+  };
+
+  function measure() {
+    const origin = stage.getBoundingClientRect();
+    const range = document.createRange();
+    glyphs = [];
+    for (const block of get(sample).querySelectorAll('[data-ocr]')) {
+      const text = block.firstChild;
+      const style = getComputedStyle(block);
+      const lineHeight = parseFloat(style.lineHeight);
+      const blockTop = block.getBoundingClientRect().top - origin.top +
+        parseFloat(style.borderTopWidth) + parseFloat(style.paddingTop);
+      for (const { segment, index } of segmenter.segment(text.data)) {
+        range.setStart(text, index);
+        range.setEnd(text, index + segment.length);
+        const rect = range.getBoundingClientRect();
+        if (rect.width <= 0) continue;
+        const t = rect.top - origin.top;
+        const b = rect.bottom - origin.top;
+        const line = Math.max(0, Math.floor(((t + b) / 2 - blockTop) / lineHeight));
+        glyphs.push({ text: segment, block, line, l: rect.left - origin.left, r: rect.right - origin.left,
+          t, b, lineTop: blockTop + line * lineHeight, lineHeight });
+      }
+    }
+  }
+
+  function collectVisible() {
+    const windowBounds = sourceWindow.getBoundingClientRect();
+    const origin = stage.getBoundingClientRect();
+    const lowest = Math.min(box.b, windowBounds.bottom - origin.top);
+    visible = glyphs.filter(g => g.l >= box.l - .25 && g.r <= box.r + .25 && g.t >= box.t - .25 && g.b <= lowest + .25);
+    rows = [];
+    for (const [index, glyph] of visible.entries()) {
+      let row = rows.at(-1);
+      if (!row || row.block !== glyph.block || row.line !== glyph.line) {
+        row = { ...glyph, t: glyph.lineTop + 1, b: glyph.lineTop + glyph.lineHeight - 2,
+          first: index, last: index };
+        rows.push(row);
+      }
+      row.r = glyph.r;
+      row.last = index;
+    }
+    rows = rows.filter(row => visible.slice(row.first, row.last + 1).some(g => g.text.trim()));
+  }
+
+  function paintMarks() {
+    marks.replaceChildren();
+    if (!box || state !== 'ready') return;
+    const add = (kind, l, t, r, b) => {
+      const rect = document.createElement('div');
+      rect.className = `mark ${kind}`;
+      const left = Math.max(box.l, l);
+      const top = Math.max(box.t, t);
+      const width = Math.min(box.r, r) - left;
+      const height = Math.min(box.b, b) - top;
+      if (width <= 0 || height <= 0) return;
+      place(rect, left, top, width, height);
+      marks.append(rect);
+    };
+    for (const row of rows) {
+      const underline = (l, r) => add('idle', l, row.b - 1, r, row.b);
+      const intersectsSelection = selected && selected[0] <= row.last && selected[1] >= row.first;
+      if (intersectsSelection) {
+        const first = visible[Math.max(row.first, selected[0])];
+        const last = visible[Math.min(row.last, selected[1])];
+        underline(row.l, first.l);
+        underline(last.r, row.r);
+        add('active', first.l, row.t, last.r, row.b);
+      } else if (row === hovered && !gesture) {
+        add('hover', row.l - 3, row.t, row.r + 3, row.b);
+      } else {
+        underline(row.l, row.r);
+      }
+    }
+  }
+
+  function paint() {
+    frame.hidden = status.hidden = toolbar.hidden = !box;
+    shade.style.clipPath = '';
+    if (!box) { paintMarks(); return; }
+    const { l, t, r, b } = box;
+    shade.style.clipPath = `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${l}px ${t}px, ${l}px ${b}px, ${r}px ${b}px, ${r}px ${t}px, ${l}px ${t}px)`;
+    place(frame, l, t, r - l, b - t);
+    frame.classList.toggle('sizing', state === 'resize');
+    status.dataset.state = state;
+    status.querySelector('use').setAttribute('href', state === 'ready' ? '#done' : state === 'busy' ? '#loader' : '#scan');
+    status.querySelector('span').textContent = labels[state];
+
+    const edge = 8;
+    const gap = 10;
+    const statusWidth = status.offsetWidth;
+    const statusHeight = status.offsetHeight;
+    const toolbarWidth = toolbar.offsetWidth;
+    const toolbarHeight = toolbar.offsetHeight;
+    const toolbarLeft = limit(r - toolbarWidth, edge, stage.clientWidth - toolbarWidth - edge);
+    const statusLeft = limit((l + r - statusWidth) / 2, edge, stage.clientWidth - statusWidth - edge);
+    let statusTop = t >= statusHeight + gap + edge ? t - statusHeight - gap : t + gap;
+    let toolbarTop = b + gap;
+    if (toolbarTop + toolbarHeight > stage.clientHeight - edge) {
+      const above = t - gap - toolbarHeight;
+      toolbarTop = above >= edge ? above : Math.max(edge, b - gap - toolbarHeight);
+      if (above >= edge && statusLeft + statusWidth + edge > toolbarLeft && statusLeft < toolbarLeft + toolbarWidth + edge) {
+        statusTop = above - statusHeight - gap >= edge ? above - statusHeight - gap : t + gap;
+      }
+    }
+    status.style.left = `${statusLeft}px`;
+    status.style.top = `${statusTop}px`;
+    toolbar.style.left = `${toolbarLeft}px`;
+    toolbar.style.top = `${toolbarTop}px`;
+
+    const unavailable = state !== 'ready' || !selected;
+    const disabledHint = state === 'ready' ? '请先选择文字' : labels[state];
+    copy.disabled = search.disabled = unavailable;
+    copy.title = unavailable ? disabledHint : '复制所选 · Ctrl+C';
+    search.title = unavailable ? disabledHint : '搜索所选 · Enter';
+
+    paintMarks();
+  }
+
+  function recognize(animate) {
+    clearTimeout(runTimer);
+    selected = hovered = null;
+    collectVisible();
+    const key = `${box.l},${box.t},${box.r},${box.b}`;
+    const done = () => {
+      cachedBoxes.add(key);
+      state = rows.length ? 'ready' : 'empty';
+      paint();
+    };
+    if (animate && !cachedBoxes.has(key)) {
+      state = 'busy';
+      paint();
+      runTimer = setTimeout(done, 360);
+    } else done();
+  }
+
+  function reset(animate = false) {
+    gesture = null;
+    delete stage.dataset.drag;
+    measure();
+    const text = glyphs.filter(g => g.text.trim());
+    const origin = stage.getBoundingClientRect();
+    const bounds = sourceWindow.getBoundingClientRect();
+    const narrow = stage.clientWidth <= 610;
+    const padding = narrow ? 9 : 20;
+    const first = text[0];
+    const right = text.reduce((edge, glyph) => Math.max(edge, glyph.r), first?.r ?? 220);
+    const bottom = text.reduce((edge, glyph) => Math.max(edge, glyph.b), first?.b ?? 100);
+    box = {
+      l: Math.max(8, Math.floor((first?.l ?? 24) - padding)),
+      t: Math.max(8, Math.floor((first?.t ?? 58) - Math.min(padding, 15))),
+      r: Math.ceil(Math.min(right + padding, bounds.right - origin.left - 3, stage.clientWidth - 8)),
+      b: Math.ceil(Math.min(bottom + padding, bounds.bottom - origin.top - 3, stage.clientHeight - 62))
+    };
+    box.b = Math.max(box.t + 24, box.b);
+    recognize(animate);
+  }
+
+  function resize(from, edge, x, y) {
+    const next = { ...from };
+    if (edge.includes('l')) next.l = limit(x, 0, from.r - 24);
+    if (edge.includes('r')) next.r = limit(x, from.l + 24, stage.clientWidth);
+    if (edge.includes('t')) next.t = limit(y, 0, from.b - 24);
+    if (edge.includes('b')) next.b = limit(y, from.t + 24, stage.clientHeight);
+    return next;
+  }
+
+  function rowAt(p) {
+    return state === 'ready' && box && inside(p, box)
+      ? rows.find(row => inside(p, { l: row.l - 3, r: row.r + 3, t: row.t, b: row.b }))
+      : undefined;
+  }
+
+  function edgeAt(p) {
+    const margin = 4;
+    if (!box || !inside(p, { l: box.l - margin, t: box.t - margin, r: box.r + margin, b: box.b + margin })) return '';
+    const x = Math.abs(p.x - box.l) <= margin ? 'l' : Math.abs(p.x - box.r) <= margin ? 'r' : '';
+    const y = Math.abs(p.y - box.t) <= margin ? 't' : Math.abs(p.y - box.b) <= margin ? 'b' : '';
+    return x + y;
+  }
+
+  const edgeCursors = { l: 'ew-resize', r: 'ew-resize', t: 'ns-resize', b: 'ns-resize',
+    lt: 'nwse-resize', rb: 'nwse-resize', rt: 'nesw-resize', lb: 'nesw-resize' };
+
+  function nearest(p, row) {
+    const activeRow = row ?? rows.reduce((best, candidate) => {
+      const distance = r => Math.abs(p.y - (r.t + r.b) / 2);
+      return !best || distance(candidate) < distance(best) ? candidate : best;
+    }, null);
+    if (!activeRow) return null;
+    for (let index = activeRow.first; index <= activeRow.last; index++) {
+      if (p.x <= visible[index].r) return index;
+    }
+    return activeRow.last;
+  }
+
+  function moveGesture(p) {
+    if (gesture.kind === 'text') {
+      const end = nearest(p, rowAt(p));
+      selected = [Math.min(gesture.index, end), Math.max(gesture.index, end)];
+    } else if (gesture.kind === 'resize') {
+      box = resize(gesture.from, gesture.edge, p.x + gesture.dx, p.y + gesture.dy);
+    } else {
+      const { x, y } = gesture.start;
+      const r = Math.max(p.x, x);
+      const b = Math.max(p.y, y);
+      box = { l: Math.min(p.x, x), t: Math.min(p.y, y), r, b };
+    }
+    paint();
+  }
+
+  stage.addEventListener('pointerdown', event => {
+    if (event.button !== 0 || gesture || event.target.closest('#toolbar')) return;
+    const p = point(event);
+    const edge = event.target.closest('[data-edge]')?.dataset.edge ?? edgeAt(p);
+    const row = rowAt(p);
+    clearTimeout(runTimer);
+    if (edge) {
+      const x = edge.includes('l') ? box.l : box.r;
+      const y = edge.includes('t') ? box.t : box.b;
+      gesture = { kind: 'resize', from: box, edge, dx: x - p.x, dy: y - p.y };
+    } else if (row) {
+      gesture = { kind: 'text', index: nearest(p, row) };
+    } else if (!box || !inside(p, box)) {
+      gesture = { kind: 'frame', start: p, from: box };
+    } else {
+      selected = null;
+      if (state === 'busy') recognize(false);
+      else paint();
+      return;
+    }
+    event.preventDefault();
+    gesture.pointer = event.pointerId;
+    stage.setPointerCapture(event.pointerId);
+    stage.dataset.drag = gesture.kind;
+    if (gesture.kind !== 'text') { state = 'resize'; selected = hovered = null; }
+    moveGesture(p);
+  });
+
+  stage.addEventListener('pointermove', event => {
+    const p = point(event);
+    if (gesture) {
+      if (gesture.pointer === event.pointerId) moveGesture(p);
+      return;
+    }
+    const edge = edgeAt(p);
+    const row = edge || event.target.closest('button') ? null : rowAt(p);
+    stage.style.cursor = edgeCursors[edge] ?? (row ? 'text' : '');
+    if (row === hovered) return;
+    hovered = row;
+    paintMarks();
+  });
+
+  stage.addEventListener('pointerleave', () => {
+    if (!gesture) { hovered = null; stage.style.cursor = ''; paintMarks(); }
+  });
+
+  function finish(event, canceled) {
+    if (!gesture || gesture.pointer !== event.pointerId) return;
+    if (!canceled) moveGesture(point(event));
+    const { kind, from } = gesture;
+    gesture = null;
+    delete stage.dataset.drag;
+    if (kind === 'text') { paint(); return; }
+    if (canceled || box.r - box.l < 24 || box.b - box.t < 24) box = from;
+    if (box) recognize(!canceled);
+    else paint();
+  }
+
+  stage.addEventListener('pointerup', event => finish(event, false));
+  stage.addEventListener('pointercancel', event => finish(event, true));
+  frame.addEventListener('keydown', event => {
+    const edge = event.target.dataset.edge;
+    const direction = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
+    if (!edge || !direction) return;
+    event.preventDefault();
+    const amount = event.shiftKey ? 10 : 1;
+    box = resize(box, edge, (edge.includes('l') ? box.l : box.r) + direction[0] * amount,
+      (edge.includes('t') ? box.t : box.b) + direction[1] * amount);
+    recognize(true);
+  });
+
+  function resultText() {
+    if (state !== 'ready' || !selected) return '';
+    const [first, last] = selected;
+    return rows.filter(row => row.first <= last && row.last >= first)
+      .map(row => visible.slice(Math.max(row.first, first), Math.min(row.last, last) + 1).map(g => g.text).join('').trim())
+      .filter(Boolean).join('\n');
+  }
+
+  function notify(text) {
+    const toast = get('toast');
+    clearTimeout(toastTimer);
+    toast.textContent = text;
+    toast.hidden = false;
+    toastTimer = setTimeout(() => { toast.hidden = true; }, 1800);
+  }
+
+  copy.addEventListener('click', async () => {
+    const text = resultText();
+    if (!text) return;
+    let copied = false;
+    try {
+      await navigator.clipboard.writeText(text);
+      copied = true;
+    } catch {
+      const buffer = document.createElement('textarea');
+      buffer.value = text;
+      buffer.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+      document.body.append(buffer);
+      buffer.select();
+      copied = document.execCommand('copy');
+      buffer.remove();
+    }
+    notify(copied ? '已复制到剪贴板' : '无法访问剪贴板');
+  });
+
+  search.addEventListener('click', () => {
+    const text = resultText();
+    if (!text) return;
+    get('query').value = text;
+    searchDialog.showModal();
+  });
+
+  function cancel() {
+    clearTimeout(runTimer);
+    box = gesture = selected = hovered = null;
+    delete stage.dataset.drag;
+    stage.style.cursor = '';
+    paint();
+  }
+
+  get('cancel').addEventListener('click', cancel);
+  get('reset-frame').addEventListener('click', () => reset(true));
+  const fullscreen = get('fullscreen');
+  fullscreen.addEventListener('click', async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch { notify('浏览器无法进入全屏'); }
+  });
+  document.addEventListener('fullscreenchange', () => {
+    const active = Boolean(document.fullscreenElement);
+    fullscreen.title = active ? '退出全屏' : '进入全屏';
+    fullscreen.setAttribute('aria-label', fullscreen.title);
+    fullscreen.querySelector('use').setAttribute('href', active ? '#minimize' : '#maximize');
+  });
+  document.addEventListener('keydown', event => {
+    if (!box || searchDialog.open) return;
+    if (event.key === 'Escape') { event.preventDefault(); cancel(); }
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c' && !copy.disabled) {
+      event.preventDefault(); copy.click();
+    }
+    if (event.key === 'Enter' && !event.target.closest('button') && !search.disabled) {
+      event.preventDefault(); search.click();
+    }
+  });
+
+  for (const button of document.querySelectorAll('[data-sample]')) {
+    button.addEventListener('click', () => {
+      if (button.dataset.sample === sample) return;
+      get('toast').hidden = true;
+      sample = button.dataset.sample;
+      for (const tab of document.querySelectorAll('[data-sample]')) tab.setAttribute('aria-pressed', String(tab === button));
+      get('document').hidden = sample !== 'document';
+      get('terminal').hidden = sample !== 'terminal';
+      sourceWindow.classList.toggle('terminal', sample === 'terminal');
+      get('window-icon').setAttribute('href', sample === 'terminal' ? '#prompt' : '#file');
+      get('window-title').textContent = sample === 'terminal' ? 'PowerShell · Windows 终端' : '设计笔记.txt · 记事本';
+      cachedBoxes.clear();
+      reset(true);
+    });
+  }
+
+  reset();
+  previousSize = [stage.clientWidth, stage.clientHeight];
+  new ResizeObserver(() => {
+    const size = [stage.clientWidth, stage.clientHeight];
+    if (size[0] === previousSize[0] && size[1] === previousSize[1]) return;
+    previousSize = size;
+    cachedBoxes.clear();
+    if (box) reset();
+    else measure();
+  }).observe(stage);
+</script>
+</body>
+</html>
