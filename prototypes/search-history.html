@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>易搜 · 搜索历史候选</title>
+<style>
+  :root {
+    color-scheme: light;
+    font: 14px/1.5 "Segoe UI", "Microsoft YaHei UI", sans-serif;
+    --accent: #1f75db;
+    --text: #202632;
+    --muted: #596576;
+    --panel: #f7f8fb;
+    --line: #dde2eb;
+    --hover: #eaf0f8;
+    --selected: #e4efff;
+    --highlight: #174e9a;
+    --key: #ffffff;
+    --toggle: #f5f7fc;
+  }
+  :root[data-tone="dark"] {
+    color-scheme: dark;
+    --accent: #75adf6;
+    --text: #f2f5fb;
+    --muted: #aeb9ca;
+    --panel: #222831;
+    --line: #3b4554;
+    --hover: #2e3949;
+    --selected: #293d57;
+    --highlight: #afd2ff;
+    --key: #303947;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    min-height: 100dvh;
+    margin: 0;
+    background:
+      radial-gradient(ellipse at 24% -14%, #4c4a59, transparent 58%),
+      radial-gradient(ellipse at 100% 100%, #293849, transparent 63%),
+      #1d2430;
+  }
+  button, input { font: inherit; }
+  button, a { -webkit-tap-highlight-color: transparent; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .toolbar { display: flex; justify-content: flex-end; padding: 20px clamp(16px, 4vw, 48px) 0; }
+  .tone {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid #ffffff35;
+    border-radius: 8px;
+    background: #151b2680;
+  }
+  .tone button {
+    padding: 4px 11px;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: #e1e8f2;
+    cursor: pointer;
+    transition: background-color 120ms, color 120ms;
+  }
+  .tone button:hover { background: #ffffff26; }
+  .tone button[aria-pressed="true"] { color: #26364d; background: var(--toggle); }
+  main {
+    width: min(640px, calc(100% - 32px));
+    margin: clamp(30px, 12dvh, 112px) auto 0;
+    padding-bottom: 28px;
+  }
+  .search {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 60px;
+    padding: 8px 17px;
+    border: 1px solid #ffffff32;
+    border-radius: 10px;
+    color: #fff7f7;
+    background: #79565bd9;
+    backdrop-filter: blur(20px);
+    box-shadow: 0 10px 24px #0002;
+  }
+  .search:focus-within { border-color: #a9c9ff8c; }
+  :root[data-tone="dark"] .search { background: #202631d9; }
+  .search input {
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    outline: 0;
+    color: inherit;
+    background: transparent;
+    font-size: 21px;
+  }
+  .search input::placeholder { color: #f1e5e8; }
+  .current-engine {
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
+    object-fit: contain;
+  }
+  .panel, .receipt {
+    margin-top: 8px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--text);
+    background: var(--panel);
+    box-shadow: 0 18px 42px #09121c54;
+  }
+  .panel { overflow: hidden; animation: appear 150ms cubic-bezier(.16, 1, .3, 1); }
+  @keyframes appear {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .panel-header, .panel-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 16px;
+  }
+  .panel-header { border-bottom: 1px solid var(--line); }
+  .panel-header h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .history-icon {
+    flex: 0 0 18px;
+    width: 18px;
+    height: 18px;
+    opacity: .62;
+  }
+  :root[data-tone="dark"] .history-icon { filter: invert(1); }
+  .count { margin-left: auto; font-size: 12px; color: var(--muted); }
+  .results {
+    display: grid;
+    grid-auto-rows: max-content;
+    gap: 2px;
+    max-height: min(342px, 47dvh);
+    min-height: 80px;
+    margin: 0;
+    padding: 6px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    list-style: none;
+  }
+  .result {
+    position: relative;
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 8px 10px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background-color 110ms, border-color 110ms;
+  }
+  .result:hover { background: var(--hover); }
+  .result[aria-selected="true"] {
+    border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+    background: var(--selected);
+  }
+  .result[aria-selected="true"]::before {
+    position: absolute;
+    inset: 12px auto 12px 0;
+    width: 3px;
+    border-radius: 3px;
+    background: var(--accent);
+    content: "";
+  }
+  .engine-icon {
+    width: 19px;
+    height: 19px;
+    justify-self: center;
+    object-fit: contain;
+  }
+  .keyword {
+    margin: 0;
+    line-height: 1.55;
+    overflow-wrap: anywhere;
+  }
+  mark {
+    padding: 0;
+    border-radius: 2px;
+    color: var(--highlight);
+    background: color-mix(in srgb, var(--accent) 13%, transparent);
+  }
+  .time { white-space: nowrap; font-size: 12px; color: var(--muted); }
+  .panel-footer {
+    flex-wrap: wrap;
+    gap: 7px 15px;
+    padding-block: 9px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .hint { display: inline-flex; align-items: center; gap: 5px; }
+  kbd {
+    min-width: 18px;
+    padding: 0 4px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--key);
+    color: var(--text);
+    font: 11px/17px "Segoe UI", sans-serif;
+    text-align: center;
+  }
+  .empty { margin: 0; padding: 18px 16px; color: var(--muted); }
+  .receipt {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 13px 16px;
+  }
+  .receipt p { margin: 0; overflow-wrap: anywhere; }
+  .receipt a { color: var(--highlight); white-space: nowrap; text-underline-offset: 3px; }
+  @media (max-width: 460px) {
+    .time { display: none; }
+    .result { grid-template-columns: 26px minmax(0, 1fr); }
+    .receipt { align-items: start; flex-direction: column; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="toolbar">
+  <div class="tone" role="group" aria-label="预览配色">
+    <button type="button" data-tone="light" aria-pressed="true">浅色</button>
+    <button type="button" data-tone="dark" aria-pressed="false">深色</button>
+  </div>
+</div>
+<main>
+  <form class="search" id="search" role="search">
+    <input id="query" type="text" role="combobox" aria-label="搜索网页" aria-autocomplete="list"
+      aria-controls="results" aria-expanded="false" autocomplete="off" placeholder="搜索网页…" value="测试">
+    <img class="current-engine" src="../assets/icons/color/bing.svg" alt="当前引擎：必应" title="当前引擎：必应">
+  </form>
+  <section class="panel" id="history" aria-labelledby="history-title" hidden>
+    <header class="panel-header">
+      <img class="history-icon" src="../assets/icons/tabler/history.svg" alt="">
+      <h1 id="history-title">搜索历史</h1>
+      <span class="count" id="count" role="status"></span>
+    </header>
+    <ul class="results" id="results" role="listbox" aria-label="匹配的搜索历史"></ul>
+    <p class="empty" id="empty" hidden>没有匹配的搜索历史。按 Enter 搜索当前关键词。</p>
+    <footer class="panel-footer" id="hints">
+      <span class="hint"><kbd aria-label="方向键上">↑</kbd><kbd aria-label="方向键下">↓</kbd>选择</span>
+      <span class="hint"><kbd>Enter</kbd>搜索</span>
+      <span class="hint"><kbd>Tab</kbd>回填编辑</span>
+      <span class="hint"><kbd>Esc</kbd>关闭</span>
+    </footer>
+  </section>
+  <div class="receipt" id="receipt" hidden>
+    <p id="receipt-text" aria-live="polite"></p>
+    <a id="receipt-link" target="_blank" rel="noopener">打开搜索结果 ↗</a>
+  </div>
+</main>
+<script>
+  const engines = {
+    bing: { name: "必应", url: "https://www.bing.com/search?q=" },
+    google: { name: "Google", url: "https://www.google.com/search?q=" },
+    baidu: { name: "百度", url: "https://www.baidu.com/s?wd=" }
+  };
+  const records = [
+    { text: "测试历史卡片是否实时更新", engine: "bing", time: "刚刚" },
+    { text: "Windows 11 测试 DirectWrite 的中文字体渲染，比较不同显示缩放下的复杂字形和文字边缘", engine: "google", time: "12 分钟前" },
+    { text: "截图 OCR 中文文本测试", engine: "baidu", time: "今天" },
+    { text: "测试", engine: "bing", time: "昨天" },
+    { text: "Windows Terminal 划词搜索测试", engine: "google", time: "昨天" },
+    { text: "Windows 11 亚克力和云母材质", engine: "bing", time: "昨天" },
+    { text: "DirectWrite 字体回退", engine: "google", time: "前天" }
+  ];
+  const form = document.querySelector("#search");
+  const input = document.querySelector("#query");
+  const engineIcon = form.querySelector(".current-engine");
+  const history = document.querySelector("#history");
+  const list = document.querySelector("#results");
+  const count = document.querySelector("#count");
+  const empty = document.querySelector("#empty");
+  const hints = document.querySelector("#hints");
+  const receipt = document.querySelector("#receipt");
+  const receiptText = document.querySelector("#receipt-text");
+  const receiptLink = document.querySelector("#receipt-link");
+  const themes = document.querySelectorAll(".tone button");
+  let engine = "bing";
+  let matches = [];
+  let active = -1;
+
+  function setEngine(id) {
+    engine = id;
+    const label = "当前引擎：" + engines[id].name;
+    engineIcon.src = "../assets/icons/color/" + id + ".svg";
+    engineIcon.alt = engineIcon.title = label;
+  }
+
+  function select(index) {
+    if (active >= 0) list.children[active]?.setAttribute("aria-selected", "false");
+    active = index;
+    if (index < 0) {
+      input.removeAttribute("aria-activedescendant");
+      return;
+    }
+    const row = list.children[index];
+    row.setAttribute("aria-selected", "true");
+    input.setAttribute("aria-activedescendant", row.id);
+    row.scrollIntoView({ block: "nearest" });
+  }
+
+  function closeHistory() {
+    select(-1);
+    history.hidden = true;
+    input.setAttribute("aria-expanded", "false");
+  }
+
+  function highlightedText(text, keyword) {
+    const pattern = new RegExp(RegExp.escape(keyword), "giu");
+    const fragment = document.createDocumentFragment();
+    let offset = 0;
+    for (const match of text.matchAll(pattern)) {
+      fragment.append(text.slice(offset, match.index));
+      const mark = document.createElement("mark");
+      mark.textContent = match[0];
+      fragment.append(mark);
+      offset = match.index + match[0].length;
+    }
+    fragment.append(text.slice(offset));
+    return fragment;
+  }
+
+  function showMatches() {
+    receipt.hidden = true;
+    const keyword = input.value.trim();
+    if (!keyword) {
+      closeHistory();
+      return;
+    }
+    select(-1);
+    matches = records.filter(record => record.text.toLowerCase().includes(keyword.toLowerCase()));
+    list.replaceChildren(...matches.map((record, index) => {
+      const row = document.createElement("li");
+      row.className = "result";
+      row.id = "result-" + index;
+      row.setAttribute("role", "option");
+      row.setAttribute("aria-selected", "false");
+      const icon = new Image();
+      icon.className = "engine-icon";
+      icon.src = "../assets/icons/color/" + record.engine + ".svg";
+      icon.alt = icon.title = engines[record.engine].name;
+      const title = document.createElement("p");
+      title.className = "keyword";
+      title.append(highlightedText(record.text, keyword));
+      const time = document.createElement("span");
+      time.className = "time";
+      time.textContent = record.time;
+      row.append(icon, title, time);
+      row.addEventListener("pointerdown", event => {
+        if (event.pointerType === "mouse") event.preventDefault();
+      });
+      row.addEventListener("click", () => prepareSearch(record.text, record.engine));
+      return row;
+    }));
+    count.textContent = matches.length + " 条";
+    list.hidden = hints.hidden = matches.length === 0;
+    empty.hidden = matches.length > 0;
+    history.hidden = false;
+    input.setAttribute("aria-expanded", String(matches.length > 0));
+    list.scrollTop = 0;
+  }
+
+  function prepareSearch(text, id) {
+    if (!text) return;
+    input.value = text;
+    setEngine(id);
+    closeHistory();
+    receipt.hidden = false;
+    receiptText.textContent = engines[id].name + " · " + text;
+    receiptLink.href = engines[id].url + encodeURIComponent(text);
+  }
+
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    const record = matches[active];
+    prepareSearch(record?.text ?? input.value.trim(), record?.engine ?? engine);
+  });
+  input.addEventListener("input", event => {
+    if (!event.isComposing) showMatches();
+  });
+  input.addEventListener("compositionend", showMatches);
+  input.addEventListener("keydown", event => {
+    if (event.isComposing || event.keyCode === 229) return;
+    if (event.key === "Escape") {
+      closeHistory();
+      return;
+    }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      if (history.hidden) showMatches();
+      if (history.hidden || !matches.length) return;
+      event.preventDefault();
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      select(Math.max(0, Math.min(matches.length - 1, active + step)));
+    }
+    if (event.key === "Tab" && !event.shiftKey && !history.hidden && matches.length) {
+      event.preventDefault();
+      const record = matches[Math.max(0, active)];
+      input.value = record.text;
+      input.setSelectionRange(input.value.length, input.value.length);
+      setEngine(record.engine);
+      closeHistory();
+    }
+  });
+  document.addEventListener("pointerdown", event => {
+    if (!event.target.closest("main, .tone")) closeHistory();
+  });
+  themes.forEach(button => button.addEventListener("click", () => {
+    document.documentElement.dataset.tone = button.dataset.tone;
+    themes.forEach(item => item.setAttribute("aria-pressed", String(item === button)));
+  }));
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+  showMatches();
+</script>
+</body>
+</html>

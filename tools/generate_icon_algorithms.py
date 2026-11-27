@@ -1,11 +1,11 @@
 r"""Generate comparison sheets using the local algorithm research builds.
 
-Prepare build/icon-algorithms with:
+Prepare target/icon-algorithms with:
   blend2d from https://github.com/blend2d/blend2d/tree/58ca9460
   windfoil from https://github.com/texel-org/windfoil/tree/f79ed320
   manson from https://josiahmanson.com/research/scanline_rasterization/supplemental/rasterizer2.zip
 
-In an x64 Visual Studio developer shell, from build/icon-algorithms:
+In an x64 Visual Studio developer shell, from target/icon-algorithms:
     cmake -S blend2d -B blend-build -DBLEND2D_NO_JIT=ON
     cmake --build blend-build --config Release
     copy blend-build\Release\blend2d.dll .
@@ -45,7 +45,7 @@ from playwright.sync_api import sync_playwright
 
 from generate_icon_preview import output, root, sources
 
-work = root / "build/icon-algorithms"
+work = root / "target/icon-algorithms"
 sizes = (16, 18, 20, 24, 30, 36, 42, 48, 64, 72)
 methods = ("Blend2D", "Manson-Schaefer", "Joint 16x16", "FreeType AutoHint",
            "Windfoil", "Slug WGSL")

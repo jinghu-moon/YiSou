@@ -1,0 +1,2330 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>易搜设置 · 交互原型</title>
+<style>
+  :root {
+    font: 14px/1.5 "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+    color: #20242b; background: #eceff1; color-scheme: light;
+    --surface: #edf0f6; --canvas: #edf0f6; --card: #fff; --edge: #d5d9e0; --line: #e1e4eb;
+    --setting-fill: #f9f9fc; --setting-hover: #fff; --setting-edge: #dce0e7;
+    --setting-radius: 7px; --setting-gap: 5px;
+    --muted: #535c6b; --accent: #1f75db; --tint: #e4eefb; --hover: #ebeff5;
+    --control-height: 34px; --control-radius: 6px; --row-height: 54px; --row-padding: 12px;
+    --danger: #9f2e2a; --success: #216749; --motion: 130ms cubic-bezier(.2,.75,.25,1);
+    --ease-control: cubic-bezier(.2,0,.38,.9); --ease-menu-in: cubic-bezier(0,0,.38,.9); --ease-menu-out: cubic-bezier(.2,0,1,.9);
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; height: 100dvh; overflow: hidden; display: grid; place-items: center; }
+  button, input, select { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: default; opacity: .48; }
+  button, a, input, select { -webkit-tap-highlight-color: transparent; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+  h1, h2, p { margin: 0; }
+  h1 { font-size: 29px; line-height: 1.28; font-weight: 650; }
+  h2 { font-size: 15px; font-weight: 650; }
+  .subtle { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+  .icon { width: 18px; height: 18px; flex: none; vertical-align: middle; }
+  .prototype { width: min(1020px, calc(100vw - 36px)); max-width: 100%; display: grid; gap: 8px; }
+  .prototype[data-size=compact] { width: min(667px, calc(100vw - 24px)); }
+  .prototype[data-size=large] { width: min(1140px, calc(100vw - 36px)); }
+  .preview-bar { display: flex; align-items: center; justify-content: flex-end; gap: 9px; font-size: 12px; color: var(--muted); min-width: 0; }
+  .segment { display: inline-flex; align-items: stretch; padding: 2px; gap: 2px; border: 1px solid var(--edge); border-radius: 7px; background: #e9edf3; }
+  .segment button { padding: 3px 10px; min-height: 27px; border: 1px solid transparent; border-radius: 5px; background: transparent; white-space: nowrap; }
+  .segment button:hover { background: #f3f6fa; }
+  .segment button[aria-pressed=true] { border-color: var(--edge); color: var(--accent); background: white; box-shadow: 0 1px 2px #1c284411; }
+  .window { height: min(690px, calc(100dvh - 48px)); min-height: 0; overflow: hidden; display: grid; grid-template-rows: 42px minmax(0,1fr); border-radius: 8px; border: 1px solid #cbd2dc; background: var(--surface); box-shadow: 0 14px 38px #25334820, 0 2px 5px #25334816; }
+  [data-size=compact] .window { height: min(345px, calc(100dvh - 58px)); }
+  [data-size=large] .window { height: min(760px, calc(100dvh - 64px)); }
+  .titlebar { display: flex; align-items: center; gap: 8px; padding: 0 10px 0 14px; font-size: 12px; }
+  .appmark { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 5px; color: white; background: var(--accent); }
+  .appmark .icon { width: 14px; height: 14px; }
+  .titlebar .tool { margin-left: auto; }
+  .body { display: grid; grid-template-columns: 182px minmax(0,1fr); min-height: 0; }
+  .rail { display: flex; flex-direction: column; gap: 3px; overflow: auto; scrollbar-width: thin; padding: 17px 10px 12px; }
+  .nav { position: relative; display: flex; align-items: center; gap: 10px; min-height: 39px; flex-shrink: 0; padding: 6px 11px; text-align: left; }
+  .nav .icon { color: var(--muted); }
+  .nav[aria-current=page] { background: var(--tint); color: #154678; font-weight: 650; }
+  .nav[aria-current=page] .icon { color: var(--accent); }
+  .nav[aria-current=page]::before { content: ""; position: absolute; left: 0; top: 50%; transform: translateY(-50%); width: 3px; height: 17px; background: var(--accent); border-radius: 3px; }
+  .content { min-width: 0; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: #9ca6b2 transparent; background: var(--canvas); }
+  .view { max-width: 794px; padding: 25px 32px 30px; margin: 0 auto; container-type: inline-size; }
+  .page-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 20px; }
+  .page-head > div { min-width: 0; }
+  .view > section + section { margin-top: 22px; }
+  .section-title { margin-bottom: 8px; }
+  .group { display: grid; gap: var(--setting-gap); }
+  .setting-card, .group > :is(.row, .inset) {
+    min-width: 0;
+    border: 1px solid var(--setting-edge);
+    border-radius: var(--setting-radius);
+    background: var(--setting-fill);
+  }
+  .row { min-height: var(--row-height); display: flex; align-items: center; gap: 12px; padding: 9px var(--row-padding); }
+  .setting-card > .row + .inset { border-top: 1px solid var(--line); }
+  .row > .icon { color: var(--muted); width: 19px; height: 19px; }
+  .copy { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+  .label { font-weight: 600; }
+  .copy .subtle { margin-top: 2px; }
+  .actions, .toolbar, .inline { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .actions, .inline { flex-wrap: wrap; }
+  .actions { justify-content: flex-end; }
+  .toolbar { justify-content: space-between; margin-bottom: 16px; }
+  .tool, .button, .nav { border-radius: var(--control-radius); border: 1px solid transparent; background: transparent; transition: background var(--motion), color var(--motion), border-color var(--motion); }
+  .button { min-height: var(--control-height); display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 4px 11px; border-color: var(--edge); background: var(--card); text-align: center; }
+  .button span { min-width: 0; overflow-wrap: anywhere; }
+  .button:hover:not(:disabled), .tool:hover:not(:disabled), .nav:hover:not([aria-current=page]) { background: var(--hover); }
+  .button.accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .button.accent:hover:not(:disabled) { background: #1a65bf; }
+  .button.danger { color: var(--danger); }
+  .button .icon { width: 15px; height: 15px; }
+  .tool { display: inline-grid; place-items: center; width: 33px; height: 33px; padding: 0; flex: none; }
+  .tool .icon { width: 17px; height: 17px; }
+  .switch { width: 42px; height: 24px; padding: 0; flex: none; position: relative; border-radius: 13px; border: 1px solid #a3a3a3; background: #a3a3a3; transition: background-color 200ms var(--ease-control), border-color 200ms var(--ease-control); }
+  .switch::after { content: ""; position: absolute; width: 18px; height: 18px; top: 2px; left: 2px; border-radius: inherit; background: #fff; box-shadow: 0 1px 2px #0003; transition: translate 200ms var(--ease-control), width 200ms var(--ease-control); }
+  .switch[aria-checked=true] { background: var(--accent); border-color: var(--accent); }
+  .switch[aria-checked=true]::after { translate: 18px 0; }
+  .switch:active:not(:disabled)::after { width: 22px; }
+  .switch[aria-checked=true]:active:not(:disabled)::after { translate: 14px 0; }
+  input:not([type=radio],[type=color],[type=file]), select { border: 1px solid var(--edge); border-radius: var(--control-radius); min-height: var(--control-height); background: var(--card); padding: 5px 9px; min-width: 0; max-width: 100%; }
+  select { appearance: none; padding-inline-end: 30px; background: var(--card) url('../assets/icons/tabler/chevron-down.svg') right 9px center / 14px no-repeat; }
+  @supports (appearance: base-select) and selector(::picker(select)) {
+    select, select::picker(select) { appearance: base-select; }
+    select { padding-inline-end: 9px; background: var(--card); }
+    select::picker-icon { color: var(--muted); font-size: 12px; transition: rotate 200ms var(--ease-control); }
+    select:open::picker-icon { rotate: 180deg; }
+    select::picker(select) { margin: 0; padding: 4px; max-block-size: var(--picker-height, min(365px, 60dvh)); border: 1px solid var(--edge); border-radius: 8px; background: #fafbfd; color: var(--text, #20242b); box-shadow: 0 5px 16px #16223329; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #9299a4 transparent; }
+    select::picker(select) {
+      position: fixed; inset: auto; position-area: none; position-try-fallbacks: none;
+      top: var(--picker-top, anchor(bottom));
+      left: var(--picker-left, anchor(left));
+      inline-size: var(--picker-width, anchor-size(width)); min-inline-size: 0;
+    }
+    select[data-popup-side=above]::picker(select) {
+      top: auto; bottom: var(--picker-bottom);
+    }
+    select::picker(select) {
+      opacity: 0;
+      transform: translateY(var(--popup-offset, -4px)) scale(.98);
+      transform-origin: var(--popup-origin, top center);
+      transition: opacity 100ms var(--ease-menu-out), transform 100ms var(--ease-menu-out), display 100ms allow-discrete, overlay 100ms allow-discrete;
+    }
+    select:open::picker(select) {
+      opacity: 1; transform: none;
+      transition-duration: 200ms;
+      transition-timing-function: var(--ease-menu-in);
+      @starting-style { opacity: 0; transform: translateY(var(--popup-offset, -4px)) scale(.98); }
+    }
+    select option { position: relative; display: block; block-size: 36px; padding: 5px 10px 5px 13px; border-radius: 4px; line-height: 26px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    select option::checkmark { display: none; }
+    select option:checked { background: #edf0f3; }
+    select option:hover { background: #e9ecf0; }
+    select option:focus-visible { outline-offset: -2px; }
+    select option:checked::before { content: ""; position: absolute; inset-inline-start: 2px; inset-block-start: 50%; width: 3px; height: 15px; border-radius: 2px; background: var(--accent); transform: translateY(-50%); }
+    @media (forced-colors: active) {
+      select option:checked::before { background: Highlight; forced-color-adjust: none; }
+    }
+  }
+  input::placeholder { color: #666f7d; }
+  input[aria-invalid=true] { border-color: var(--danger); }
+  input[type=color] { padding: 3px; width: 37px; height: 34px; background: white; border: 1px solid var(--edge); border-radius: 6px; }
+  input[type=radio] { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; flex: none; }
+  .field { display: grid; gap: 5px; min-width: 0; }
+  .field label { font-weight: 600; font-size: 13px; }
+  .field .error:empty { display: none; }
+  .field-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+  .search-field { position: relative; flex: 1; min-width: 0; }
+  .search-field input { width: 100%; padding-inline-start: 33px !important; }
+  .search-field .icon { position: absolute; pointer-events: none; top: 9px; left: 9px; color: var(--muted); width: 16px; height: 16px; }
+  .inset { padding: var(--row-padding); }
+  .group-footer { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; padding-top: 5px; }
+  .stack { display: grid; gap: 12px; }
+  .wide { flex: 1; min-width: 0; }
+  .path { font: 12px/1.55 Consolas, "Microsoft YaHei UI", monospace; overflow-wrap: anywhere; user-select: text; }
+  .error { color: var(--danger); font-size: 12px; overflow-wrap: anywhere; }
+  .ok { color: var(--success); }
+  .plain-link { color: var(--accent); text-decoration: none; }
+  .plain-link:hover { text-decoration: underline; }
+  .brand-icon { width: 22px; height: 22px; object-fit: contain; flex: none; }
+  .custom-icon { display: inline-grid; place-items: center; border-radius: 6px; background: var(--swatch); color: #fff; font-size: 13px; font-weight: 700; }
+  .search-preview { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--edge); border-radius: 7px; padding: 8px 13px; min-height: 54px; background: var(--card); font-size: 20px; margin-bottom: 10px; }
+  .search-preview > span:first-child { overflow-wrap: anywhere; min-width: 0; }
+  .search-preview .brand-icon { width: var(--engine-size, 20px); height: var(--engine-size, 20px); }
+  .number-field { display: flex; align-items: center; flex: none; gap: 2px; padding: 2px; border: 1px solid var(--edge); border-radius: var(--control-radius); background: var(--card); }
+  .number-field .tool { width: 28px; height: 28px; border-radius: 4px; }
+  .number-field .tool .icon { width: 15px; height: 15px; }
+  .number-field .tool:active:not(:disabled) { background: var(--line); }
+  .number-value { display: flex; align-items: baseline; gap: 2px; }
+  .number-field input[type=text] { width: 28px; min-height: 28px; border: none; border-radius: 4px; background: transparent; padding: 0; text-align: center; font-variant-numeric: tabular-nums; }
+  .number-field :focus-visible { outline-offset: -2px; }
+  .number-value .subtle { font-size: 11px; }
+  .appearance-menu { grid-template-columns: minmax(174px, 36%) minmax(0, 1fr); }
+  .menu-preview { display: grid; align-content: center; justify-items: center; gap: 6px; padding: 8px; }
+  .sample-grid { display: flex; flex-wrap: wrap; gap: 7px; }
+  .sample-tile { display: grid; justify-items: center; align-content: center; gap: 3px; width: 49px; min-height: 53px; padding: 4px; border: 1px solid var(--edge); border-radius: 6px; background: var(--card); font-size: 11px; }
+  .sample-tile span:not(.brand-icon) { max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .sample-tile:first-child { border-color: #a8c6e7; background: #f2f7ff; }
+  .sample-grid[data-names=false] .sample-tile { width: 42px; min-height: 42px; }
+  .slots { display: grid; grid-template-columns: repeat(auto-fit,minmax(min(100%,110px),1fr)); gap: 6px; }
+  .slot { display: flex; align-items: center; gap: 5px; min-width: 0; min-height: 30px; max-width: 100%; padding: 3px 7px; border: 1px solid var(--line); border-radius: 6px; background: #f7f9fc; font-size: 12px; }
+  .slot > span:last-child { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .slot .keyset { flex: none; gap: 2px; --key-height: 20px; --key-padding: 4px; --key-font-size: 11px; }
+  .slot .brand-icon { width: 15px; height: 15px; font-size: 10px; }
+  .engine-line { display: grid; grid-template-columns: 28px minmax(0,1.45fr) minmax(48px,.55fr) minmax(45px,.55fr) 42px 33px; }
+  .collection .row { transition: background var(--motion); }
+  .collection .row:not(.columns):hover, .collection .row:focus-within { background: var(--setting-hover); }
+  .group > .engine-line.columns { min-height: 27px; padding-block: 3px; border-color: transparent; background: transparent; font-size: 12px; color: var(--muted); }
+  .engine-name { min-width: 0; display: flex; align-items: center; gap: 9px; }
+  .engine-name strong, .alias { min-width: 0; overflow-wrap: anywhere; }
+  .engine-name .brand-icon { transition: opacity 180ms ease; }
+  .engine-line[data-enabled=false] .engine-name .brand-icon { opacity: .48; }
+  .states { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; color: var(--accent); font-size: 12px; }
+  .states .icon { width: 14px; height: 14px; }
+  #engine-list { position: relative; }
+  .engine-line .engine-grip { width: 28px; height: 32px; color: var(--muted); cursor: grab; touch-action: none; }
+  .engine-grip .icon { width: 16px; height: 16px; }
+  .engine-sort-active { cursor: grabbing; user-select: none; }
+  .engine-drag-card { position: fixed; z-index: 10; pointer-events: none; border: 1px solid var(--edge); border-radius: var(--setting-radius); background: var(--card); box-shadow: 0 16px 40px #00000026, 0 4px 10px #00000014; transform: scale(1.02); }
+  .engine-sort-placeholder { display: flex; align-items: center; justify-content: center; gap: 6px; border: 2px dashed #c5ccd6; border-radius: var(--setting-radius); background: #e8ecf2; color: var(--muted); font-size: 12px; }
+  .collection .row.engine-line:has([aria-expanded=true]) { border-color: var(--accent); background: var(--tint); }
+  .engine-form { display: grid; gap: 14px; }
+  .engine-fields { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  .engine-card .row { border-top: 1px solid var(--line); }
+  .engine-icon-row .brand-icon { width: 34px; height: 34px; }
+  .engine-icon-row .label { font-weight: 500; }
+  .engine-color-label { display: inline-flex; gap: 7px; cursor: pointer; }
+  .engine-color-label input[type=color] { width: 23px; height: 22px; padding: 1px; border: 0; cursor: pointer; }
+  .engine-accent-controls .tool { color: var(--muted); }
+  .engine-accent-controls .tool:hover { color: var(--accent); }
+  .engine-form .feedback { margin: 0; }
+  .form-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding-top: 4px; }
+  .keyset { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 12px; }
+  .keyset kbd { display: inline-grid; place-items: center; min-width: var(--key-height, 24px); height: var(--key-height, 24px); padding: 0 var(--key-padding, 6px); border: 1px solid #9299a3; border-bottom: 2px solid #7c8490; border-radius: 4px; background: var(--card); color: inherit; font: 500 var(--key-font-size, 12px)/1 "Segoe UI", "Microsoft YaHei UI", sans-serif; transition: transform 100ms, background 100ms, border-color 100ms; }
+  .keyset .key-pressed { transform: translateY(1px); border-bottom-width: 1px; border-color: var(--accent); color: var(--accent); background: var(--tint); }
+  .key-separator { color: var(--muted); }
+  .shortcut-control { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .shortcut-control [data-shortcut-reset] { flex: none; width: 33px; }
+  .shortcut-recorder { display: flex; align-items: center; gap: 8px; width: 200px; max-width: 100%; min-width: 0; height: 32px; padding: 0 8px; border: 1px solid #a3a3a3; border-radius: 8px; background: var(--card); text-align: left; transition: border-color 200ms, box-shadow 200ms, background 200ms; }
+  .shortcut-recorder:hover { border-color: var(--muted); }
+  .shortcut-recorder[data-state=recording] { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+  .shortcut-recorder[data-state=conflict] { border-color: #d29a1a; box-shadow: 0 0 0 3px #d29a1a2e; }
+  .shortcut-recorder[data-state=success] { border-color: #37674c; background: #e0f2e7; }
+  .shortcut-recorder.invalid { border-color: var(--danger); animation: shortcut-shake 300ms; }
+  .shortcut-value { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .shortcut-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: #c75146; animation: shortcut-pulse 1s infinite; }
+  .shortcut-message { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .shortcut-message:has([role=status]:empty) { display: none; }
+  .shortcut-message[data-tone=conflict] { color: #75471b; }
+  .shortcut-message[data-tone=invalid] { color: var(--danger); }
+  .shortcut-message button { padding: 0; border: 0; background: transparent; color: var(--accent); text-decoration: underline; }
+  @keyframes shortcut-pulse { 50% { opacity: .3; } }
+  @keyframes shortcut-shake { 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+  .chip { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--edge); background: #f2f5fa; border-radius: 5px; padding: 2px 3px 2px 6px; font-size: 12px; }
+  .chip .tool { width: 22px; height: 22px; }
+  .chip .icon { width: 13px; height: 13px; }
+  .radio-row { cursor: pointer; }
+  .group > .radio-row:hover { background: var(--setting-hover); }
+  .collection .radio-row:has(input:checked) { background: var(--tint); }
+  .history-row .copy { overflow-wrap: anywhere; }
+  .pagination { display: flex; align-items: center; justify-content: space-between; gap: 7px; margin-top: 9px; }
+  .empty { text-align: center; padding: 30px 12px; display: grid; justify-items: center; gap: 7px; }
+  .empty > .icon { width: 24px; height: 24px; color: #6c7e92; }
+  .status-line { display: flex; align-items: center; gap: 7px; min-height: 41px; font-size: 13px; }
+  .status-line .icon { width: 16px; height: 16px; }
+  .spin { animation: spin 750ms linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .download-list { display: flex; flex-wrap: wrap; gap: 10px 16px; }
+  .download-list .icon { width: 13px; height: 13px; margin-left: 3px; }
+  .feedback:not(:empty) { margin-top: 7px; }
+  [data-popup-side=above] { --popup-offset: 4px; --popup-origin: bottom center; }
+  .menu { position: fixed; z-index: 3; display: grid; gap: 2px; padding: 4px; min-width: 178px; max-height: calc(100dvh - 16px); overflow: auto; border: 1px solid var(--edge); background: #fafbfd; border-radius: 8px; box-shadow: 0 6px 22px #23334c29; opacity: 0; transform: translateY(var(--popup-offset, -4px)) scale(.98); transform-origin: var(--popup-origin, top center); transition: opacity 100ms var(--ease-menu-out), transform 100ms var(--ease-menu-out), display 100ms allow-discrete; }
+  .menu:not([hidden]) {
+    opacity: 1; transform: none;
+    transition-duration: 200ms;
+    transition-timing-function: var(--ease-menu-in);
+    @starting-style { opacity: 0; transform: translateY(var(--popup-offset, -4px)) scale(.98); }
+  }
+  .menu[hidden] { pointer-events: none; }
+  .menu button { justify-content: flex-start; border-color: transparent; background: transparent; }
+  .menu:not(:has(button:hover)) button:focus { background: var(--hover); }
+  .menu button:focus-visible { outline-offset: -2px; }
+  .menu-separator { height: 1px; margin: 3px 4px; border: 0; background: var(--line); }
+  dialog { width: min(455px, calc(100vw - 30px)); max-height: calc(100dvh - 30px); margin: auto; padding: 0; border: 1px solid var(--edge); border-radius: 8px; background: var(--canvas); color: inherit; box-shadow: 0 9px 34px #23334c35; }
+  dialog[open] { animation: reveal var(--motion) both; }
+  dialog::backdrop { background: #17243744; }
+  .dialog-body { display: grid; gap: 12px; padding: 17px; }
+  .dialog-body h2 { font-size: 18px; }
+  .dialog-footer { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; border-top: 1px solid var(--line); padding: 11px 17px; }
+  .font-dialog { width: min(620px, calc(100vw - 30px)); }
+  .font-dialog[open] { display: flex; flex-direction: column; overflow: hidden; }
+  .font-dialog .dialog-body { min-height: 0; gap: 15px; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+  .font-dialog .dialog-footer { flex: none; }
+  .font-dialog .dialog-footer .button { min-width: 84px; }
+  .font-columns { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1.15fr) minmax(0, .85fr); gap: 12px; }
+  .font-field { display: grid; grid-template-rows: auto var(--control-height) auto; gap: 5px; min-width: 0; }
+  .font-field-title { font-size: 13px; font-weight: 600; }
+  .font-current { display: flex; align-items: center; padding: 0 9px; border: 1px solid var(--edge); border-radius: var(--control-radius); background: var(--card); overflow-wrap: anywhere; }
+  .font-options { height: 187px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; scrollbar-width: thin; scrollbar-color: #9ca6b2 transparent; padding: 3px; border: 1px solid var(--edge); border-radius: var(--control-radius); background: var(--card); }
+  .font-option { display: block; position: relative; cursor: pointer; min-width: 0; }
+  .font-option input[type=radio] { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .font-option span { display: block; padding: 4px 8px; border-radius: 4px; overflow-wrap: anywhere; transition: background var(--motion); }
+  .font-option:hover span { background: var(--hover); }
+  .font-options .font-option span { padding-inline-start: 13px; }
+  .font-options .font-option input:checked + span { background: #edf0f4; }
+  .font-options .font-option input:checked + span::before { content: ""; position: absolute; inset-inline-start: 3px; top: 50%; width: 3px; height: 15px; border-radius: 2px; background: var(--accent); transform: translateY(-50%); }
+  @supports selector(::-webkit-scrollbar) {
+    .font-options { scrollbar-width: auto; scrollbar-color: auto; }
+    .font-options::-webkit-scrollbar { width: 8px; }
+    .font-options::-webkit-scrollbar-thumb { background: #9299a4; border: 2px solid var(--card); border-radius: 8px; }
+    .font-options::-webkit-scrollbar-thumb:hover { background: #727c8b; }
+    .font-options::-webkit-scrollbar-button { display: none; }
+  }
+  .font-option input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
+  .font-empty { padding: 5px 8px; }
+  .font-sample { display: grid; place-items: center; min-height: 100px; padding: 10px; border: 1px solid var(--edge); border-radius: var(--control-radius); background: var(--card); text-align: center; }
+  .font-sample span { max-width: 100%; line-height: 1.35; overflow-wrap: anywhere; }
+  .font-script-options { display: flex; flex-wrap: wrap; gap: 3px; }
+  .font-script-options .font-option span { padding: 5px 10px; border: 1px solid var(--edge); background: var(--card); }
+  .font-script-options .font-option:hover span { background: var(--hover); }
+  .font-script-options .font-option input:checked + span { border-color: var(--accent); background: var(--tint); box-shadow: none; }
+  .font-more { justify-self: start; font-size: 13px; }
+  @media (max-width: 540px) {
+    .font-dialog .dialog-body { gap: 11px; }
+    .font-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .font-family-field { grid-column: 1 / -1; }
+    .font-options { height: 110px; }
+    .font-sample { min-height: 74px; }
+  }
+  @keyframes reveal { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  [data-size=compact] .body { grid-template-columns: 147px minmax(0,1fr); }
+  [data-size=compact] .view { padding: 17px 17px 25px; }
+  [data-size=compact] .rail { padding: 7px 8px; gap: 1px; }
+  [data-size=compact] .nav { min-height: 33px; }
+  @container (max-width: 450px) {
+    .appearance-menu { grid-template-columns: 1fr; }
+    .menu-preview { min-height: 91px; }
+    .row.wrap { flex-wrap: wrap; }
+    .row.wrap .actions { justify-content: flex-start; }
+    .shortcut-control { flex: 0 1 100%; }
+  }
+  @media (max-width: 720px) {
+    .prototype { width: calc(100vw - 18px); }
+    .body, [data-size=compact] .body { grid-template-columns: 138px minmax(0,1fr); }
+    .view { padding: 17px 16px 24px; }
+    .rail { padding: 9px 7px; }
+    .engine-line { grid-template-columns: 24px minmax(0,1.2fr) minmax(42px,.55fr) minmax(31px,.65fr) 42px 33px; gap: 5px; padding-inline: 8px; }
+    .engine-line .engine-grip { width: 24px; }
+    .history-row .actions { gap: 2px; }
+  }
+  @media (max-width: 510px) {
+    .prototype { width: calc(100vw - 12px); }
+    .body, [data-size=compact] .body { grid-template-columns: 49px minmax(0,1fr); }
+    .rail, [data-size=compact] .rail { padding: 6px 4px; }
+    .nav { justify-content: center; padding: 5px; min-height: 38px; }
+    .nav span:not(.icon), .preview-label { display: none; }
+    .view, [data-size=compact] .view { padding: 15px 10px 22px; }
+    .field-grid, .engine-fields { grid-template-columns: 1fr; }
+    .row { gap: 7px; padding-inline: 8px; }
+    .row.wrap { flex-wrap: wrap; }
+    .row.wrap .actions { width: 100%; justify-content: flex-start; }
+    .row > .icon { width: 16px; height: 16px; }
+    .brand-icon { width: 18px; height: 18px; }
+    .engine-name { gap: 4px; }
+    .engine-line { font-size: 12px; }
+    .button { padding-inline: 7px; }
+    .search-field { width: 100%; }
+    .history-row .repeat-label { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    select::picker(select), select::picker-icon { transition: none !important; }
+  }
+  @media (forced-colors: active) {
+    .switch { forced-color-adjust: none; background: ButtonFace; border-color: ButtonText; }
+    .switch::after { background: ButtonText; }
+    .switch[aria-checked=true] { background: Highlight; border-color: Highlight; }
+    .switch[aria-checked=true]::after { background: HighlightText; }
+    .nav[aria-current=page], .segment button[aria-pressed=true] { border-color: Highlight; }
+  }
+</style>
+</head>
+<body>
+<div class="prototype" data-size="regular" id="prototype">
+  <div class="preview-bar">
+    <span class="preview-label">原型预览</span>
+    <div class="segment" role="group" aria-label="原型版本">
+      <button type="button" data-edition="full" aria-pressed="true">Full</button>
+      <button type="button" data-edition="lite" aria-pressed="false">Lite</button>
+    </div>
+    <div class="segment" role="group" aria-label="窗口尺寸">
+      <button type="button" data-size-choice="regular" aria-pressed="true" title="1020 × 690">标准</button>
+      <button type="button" data-size-choice="compact" aria-pressed="false" title="667 × 345">紧凑</button>
+    </div>
+  </div>
+  <div class="window">
+    <header class="titlebar" id="titlebar"></header>
+    <div class="body">
+      <nav class="rail" id="nav" aria-label="设置页面"></nav>
+      <main class="content" id="content" aria-label="设置内容"></main>
+    </div>
+  </div>
+</div>
+<div class="menu" id="engine-menu" aria-label="搜索引擎操作" hidden></div>
+<dialog id="dialog"></dialog>
+<input type="file" id="local-file" hidden>
+<script>
+"use strict";
+
+// Tabler outline assets and the brand SVGs from assets/icons are embedded for file:// use.
+const glyphs = {
+  "settings": "<path d=\"M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065\" /> <path d=\"M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0\" />",
+  "palette": "<path d=\"M12 21a9 9 0 0 1 0 -18c4.97 0 9 3.582 9 8c0 1.06 -.474 2.078 -1.318 2.828c-.844 .75 -1.989 1.172 -3.182 1.172h-2.5a2 2 0 0 0 -1 3.75a1.3 1.3 0 0 1 -1 2.25\" /> <path d=\"M7.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" /> <path d=\"M11.5 7.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" /> <path d=\"M15.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" />",
+  "search": "<path d=\"M3 10a7 7 0 1 0 14 0a7 7 0 1 0 -14 0\" /> <path d=\"M21 21l-6 -6\" />",
+  "keyboard": "<path d=\"M2 8a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8\" /> <path d=\"M6 10l0 .01\" /> <path d=\"M10 10l0 .01\" /> <path d=\"M14 10l0 .01\" /> <path d=\"M18 10l0 .01\" /> <path d=\"M6 14l0 .01\" /> <path d=\"M18 14l0 .01\" /> <path d=\"M10 14l4 .01\" />",
+  "browser": "<path d=\"M4 8h16\" /> <path d=\"M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12\" /> <path d=\"M8 4v4\" />",
+  "history": "<path d=\"M12 8l0 4l2 2\" /> <path d=\"M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5\" />",
+  "scan": "<path d=\"M5 12h14\" /> <path d=\"M3 7v-2a2 2 0 0 1 2 -2h2\" /> <path d=\"M3 17v2a2 2 0 0 0 2 2h2\" /> <path d=\"M17 3h2a2 2 0 0 1 2 2v2\" /> <path d=\"M17 21h2a2 2 0 0 0 2 -2v-2\" />",
+  "file-typography": "<path d=\"M14 3v4a1 1 0 0 0 1 1h4\" /> <path d=\"M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2\" /> <path d=\"M11 18h2\" /> <path d=\"M12 18v-7\" /> <path d=\"M9 12v-1h6v1\" />",
+  "power": "<path d=\"M7 6a7.75 7.75 0 1 0 10 0\" /> <path d=\"M12 4l0 8\" />",
+  "device-desktop": "<path d=\"M3 5a1 1 0 0 1 1 -1h16a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-16a1 1 0 0 1 -1 -1v-10\" /> <path d=\"M7 20h10\" /> <path d=\"M9 16v4\" /> <path d=\"M15 16v4\" />",
+  "language": "<path d=\"M9 6.371c0 4.418 -2.239 6.629 -5 6.629\" /> <path d=\"M4 6.371h7\" /> <path d=\"M5 9c0 2.144 2.252 3.908 6 4\" /> <path d=\"M12 20l4 -9l4 9\" /> <path d=\"M19.1 18h-6.2\" /> <path d=\"M6.694 3l.793 .582\" />",
+  "typography": "<path d=\"M4 20l3 0\" /> <path d=\"M14 20l7 0\" /> <path d=\"M6.9 15l6.9 0\" /> <path d=\"M10.2 6.3l5.8 13.7\" /> <path d=\"M5 20l6 -16l2 0l7 16\" />",
+  "plus": "<path d=\"M12 5l0 14\" /> <path d=\"M5 12l14 0\" />",
+  "minus": "<path d=\"M5 12l14 0\" />",
+  "dots": "<path d=\"M4 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" /> <path d=\"M11 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" /> <path d=\"M18 12a1 1 0 1 0 2 0a1 1 0 1 0 -2 0\" />",
+  "check": "<path d=\"M5 12l5 5l10 -10\" />",
+  "help-circle": "<path d=\"M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0\" /> <path d=\"M12 16v.01\" /> <path d=\"M12 13a2 2 0 0 0 .914 -3.782a1.98 1.98 0 0 0 -2.414 .483\" />",
+  "grip-vertical": "<circle cx=\"9\" cy=\"5\" r=\"1\" /><circle cx=\"9\" cy=\"12\" r=\"1\" /><circle cx=\"9\" cy=\"19\" r=\"1\" /><circle cx=\"15\" cy=\"5\" r=\"1\" /><circle cx=\"15\" cy=\"12\" r=\"1\" /><circle cx=\"15\" cy=\"19\" r=\"1\" />",
+  "layout-board": "<rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" rx=\"2\" /><path d=\"M3 9h18M9 9v12\" />",
+  "star": "<path d=\"M12 3l2.75 5.57l6.15 .9l-4.45 4.33l1.05 6.13l-5.5 -2.9l-5.5 2.9l1.05 -6.13l-4.45 -4.33l6.15 -.9z\" />",
+  "pencil": "<path d=\"M4 20h4l12 -12a2.83 2.83 0 0 0 -4 -4l-12 12v4\" /> <path d=\"M14 6l4 4\" />",
+  "pin": "<path d=\"M15 4.5l-4 4l-4 1.5l-1.5 1.5l7 7l1.5 -1.5l1.5 -4l4 -4\" /> <path d=\"M9 15l-4.5 4.5\" /> <path d=\"M14.5 4l5.5 5.5\" />",
+  "arrow-up": "<path d=\"M12 5l0 14\" /> <path d=\"M18 11l-6 -6\" /> <path d=\"M6 11l6 -6\" />",
+  "arrow-down": "<path d=\"M12 5l0 14\" /> <path d=\"M18 13l-6 6\" /> <path d=\"M6 13l6 6\" />",
+  "arrow-left": "<path d=\"M5 12l14 0\" /> <path d=\"M5 12l6 6\" /> <path d=\"M5 12l6 -6\" />",
+  "external-link": "<path d=\"M12 6h-6a2 2 0 0 0 -2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-6\" /> <path d=\"M11 13l9 -9\" /> <path d=\"M15 4h5v5\" />",
+  "x": "<path d=\"M18 6l-12 12\" /> <path d=\"M6 6l12 12\" />",
+  "trash": "<path d=\"M4 7l16 0\" /> <path d=\"M10 11l0 6\" /> <path d=\"M14 11l0 6\" /> <path d=\"M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12\" /> <path d=\"M9 7v-3a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v3\" />",
+  "folder": "<path d=\"M5 4h4l3 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-11a2 2 0 0 1 2 -2\" />",
+  "loader-2": "<path d=\"M12 3a9 9 0 1 0 9 9\" />",
+  "circle-check": "<path d=\"M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0\" /> <path d=\"M9 12l2 2l4 -4\" />",
+  "download": "<path d=\"M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2\" /> <path d=\"M7 11l5 5l5 -5\" /> <path d=\"M12 4l0 12\" />",
+  "maximize": "<path d=\"M4 8v-2a2 2 0 0 1 2 -2h2\" /> <path d=\"M4 16v2a2 2 0 0 0 2 2h2\" /> <path d=\"M16 4h2a2 2 0 0 1 2 2v2\" /> <path d=\"M16 20h2a2 2 0 0 0 2 -2v-2\" />",
+  "minimize": "<path d=\"M15 19v-2a2 2 0 0 1 2 -2h2\" /> <path d=\"M15 5v2a2 2 0 0 0 2 2h2\" /> <path d=\"M5 15h2a2 2 0 0 1 2 2v2\" /> <path d=\"M5 9h2a2 2 0 0 0 2 -2v-2\" />",
+};
+const brandSvgs = {
+  "bing": "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iY3VycmVudENvbG9yIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPgogIDx0aXRsZT5NaWNyb3NvZnQgQmluZzwvdGl0bGU+CiAgPHBhdGggZD0iTTQuODQyLjAwNWEuOTY2Ljk2NiAwIDAxLjYwNC4xNDJsMi42MiAxLjgxM2MuMzY5LjI1Ni40OTIuMzUyLjYzNy40OTYuNDcxLjQ3Ljc1MiAxLjA5Ljc5NyAxLjc2NWwuMDA4Ljg0Ny4wMDMgMS40NDEuMDA0IDEzLjAwMi4xNDQtLjA5NCA3LjAxNS00LjM1My4wMTUuMDAzLjAyOS4wMWMtLjM5OC0uMTctLjg5My0uMzM5LTEuNjU1LS41NjZsLS40ODQtLjE0NmMtLjU4NC0uMTgtLjcxLS4yMzgtLjkyMS0uMzhhMi4wMDkgMi4wMDkgMCAwMS0uMzctLjMxMiAyLjE3MiAyLjE3MiAwIDAxLS40MS0uNTkyTDExLjMyIDkuMDYzYy0uMTY2LS40NDQtLjE2Ni0uNDktLjE1Ni0uNjNhLjkyLjkyIDAgMDEuODA2LS44NjRsLjA5NC0uMDFjLjA0NC0uMDA1LjIyLjAyMy4yOS4wNDRsLjA1Mi4wMjFjLjA2LjAyNi4xNi4wNzUuMzEzLjE1NGwzLjYzIDEuOTA4YTYuNjI2IDYuNjI2IDAgMDEzLjI5MiA0LjUzMWMuMTk0Ljk5LjE1OSAyLjAzNy0uMTAyIDMuMDEyLS4yMTYuODA1LS42MzkgMS42OTQtMS4wNTQgMi4yMTNsLS4wOC4wOTktLjA0Ny4wNWMtLjAxLjAxLS4wMTMuMDEtLjAxLjAwMmwuMDQzLS4wNzQtLjA3Mi4xMTRjLS4wMTEuMDMxLS4yMzMuMjgtLjM4LjQyNWwtLjE3LjE2MWMtLjIyLjIwMi0uNDMxLjM2LS44MzIuNjJMMTMuNTQ0IDIzYy0uOTQxLjYtMS44Ni45MTItMi45MTMuOTkyLS4yMy4wMTgtLjg1NC4wMDgtMS4wNzQtLjAxN2E2LjMxIDYuMzEgMCAwMS0xLjY1OC0uNDEyYy0xLjg1NC0uNzM4LTMuMjIzLTIuMjg4LTMuNzA1LTQuMTk1YTguMDc3IDguMDc3IDAgMDEtLjEyMS0uNTdsLS4wNDYtLjMyNWExLjEyMyAxLjEyMyAwIDAxLS4wMTQtLjE2OGwtLjAwNi0uMDI5TDQgMTEuNjE3IDQuMDEuODY2YS45ODEuOTgxIDAgMDEuMDA3LS4xMTEuOTQzLjk0MyAwIDAxLjgyNS0uNzV6IiAvPgo8L3N2Zz4=",
+  "baidu": "PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+QmFpZHU8L3RpdGxlPjxwYXRoIGQ9Ik05LjE1NCAwQzcuNzEgMCA2LjU0IDEuNjU4IDYuNTQgMy43MDdjMCAyLjA1MSAxLjE3MSAzLjcxIDIuNjE1IDMuNzEgMS40NDYgMCAyLjYxNC0xLjY1OSAyLjYxNC0zLjcxQzExLjc2OCAxLjY1OCAxMC42IDAgOS4xNTQgMHptNy4wMjUuNTk0QzE0Ljg2LjU4IDEzLjM0NyAyLjU4OSAxMy4yIDMuOTI3Yy0uMTg3IDEuNzQ1LjI1IDMuNDg3IDIuMTc5IDMuNzM1IDEuOTMzLjI1IDMuMTc1LTEuODA2IDMuNDIyLTMuMzY0LjI1Mi0xLjU1NS0uOTk1LTMuMzY0LTIuMzYyLTMuNjc0YTEuMjE4IDEuMjE4IDAgMCAwLS4yNjEtLjAzek0zLjU4MiA1LjUzNWEyLjgxMSAyLjgxMSAwIDAgMC0uMTU2LjAwOGMtMi4xMTguMTktMi40MjggMy4yNC0yLjQyOCAzLjI0LS4yODcgMS40MS42ODYgNC40MjUgMy4yOTcgMy44NjQgMi42MTctLjU2MSAyLjI2Mi0zLjY4IDIuMTgzLTQuMzYyLS4xMjUtMS4wMTgtMS4yOTItMi43NzMtMi44OTYtMi43NXptMTYuNTM0IDEuNzUzYy0yLjMwOCAwLTIuNjE3IDIuMTE5LTIuNjE3IDMuNjE2IDAgMS40My4xMjEgMy40MjUgMi45ODggMy4zNjIgMi44NjctLjA2MyAyLjU1My0zLjIzOCAyLjU1My0zLjk4OCAwLS43NDUtLjYyLTIuOTktMi45MjQtMi45OXptLTguMjY0IDIuNDc4Yy0xLjQyNC4wMTQtMi43MDguOTI1LTMuMzIzIDEuOTQ3LTEuMTE4IDEuODY4LTIuODYzIDMuMDUtMy4xMTIgMy4zNjMtLjI1LjMwOS0zLjYxIDIuMTE2LTIuODY0IDUuNDIuNzQ2IDMuMzAxIDMuMzY1IDMuMjM3IDMuMzY1IDMuMjM3czEuOTMuMTkgNC4xNzEtLjMxYzIuMjQtLjQ5NSA0LjE3LjEyMyA0LjE3LjEyM3M1LjIzMyAxLjc0OCA2LjY2NS0xLjYxNmMxLjQzLTMuMzY0LS44MDgtNS4xMDktLjgwOC01LjEwOXMtMi45OS0yLjMwNi00LjczNi00Ljc5OGMtMS4wNzItMS42NjUtMi4zNDgtMi4yNjgtMy41MjgtMi4yNTd6bS0yLjIzNCAzLjg0bDEuNTQyLjAyNHY4LjE5N0g3Ljc1OGMtMS40Ny0uMjkxLTIuMDU1LTEuMjkyLTIuMTMtMS40NjItLjA3Mi0uMTczLS40ODgtLjk3Ni0uMjY4LTIuMzQzLjYzNS0yLjA0OSAyLjQ0Ny0yLjE5NiAyLjQ0Ny0yLjE5NmgxLjgxem0zLjk2NCAyLjM5djMuODgxYy4wOTYuNDEzLjYxMi40ODguNjEyLjQ4OGgxLjYxNHYtNC4zNDNoMS42ODl2NS43ODJoLTMuOTE1Yy0xLjUxNy0uMzktMS41OS0xLjQ2NS0xLjU5LTEuNDY1di00LjMxN3ptLTUuNDU4IDEuMTQ3Yy0uNjYuMTk3LS45NzguNzA4LTEuMDUuOTI4LS4wNzYuMjItLjI0Ny43OC0uMSAxLjI2OS4yOTQgMS4wOTUgMS4yNDggMS4xNDQgMS4yNDggMS4xNDRoMS4zN3YtMy4zNHoiLz48L3N2Zz4=",
+  "google": "PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+R29vZ2xlPC90aXRsZT48cGF0aCBkPSJNMTIuNDggMTAuOTJ2My4yOGg3Ljg0Yy0uMjQgMS44NC0uODUzIDMuMTg3LTEuNzg3IDQuMTMzLTEuMTQ3IDEuMTQ3LTIuOTMzIDIuNC02LjA1MyAyLjQtNC44MjcgMC04LjYtMy44OTMtOC42LTguNzJzMy43NzMtOC43MiA4LjYtOC43MmMyLjYgMCA0LjUwNyAxLjAyNyA1LjkwNyAyLjM0N2wyLjMwNy0yLjMwN0MxOC43NDcgMS40NCAxNi4xMzMgMCAxMi40OCAwIDUuODY3IDAgLjMwNyA1LjM4Ny4zMDcgMTJzNS41NiAxMiAxMi4xNzMgMTJjMy41NzMgMCA2LjI2Ny0xLjE3MyA4LjM3My0zLjM2IDIuMTYtMi4xNiAyLjg0LTUuMjEzIDIuODQtNy42NjcgMC0uNzYtLjA1My0xLjQ2Ny0uMTczLTIuMDUzSDEyLjQ4eiIvPjwvc3ZnPg==",
+  "bilibili": "PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+QmlsaWJpbGk8L3RpdGxlPjxwYXRoIGQ9Ik0xNy44MTMgNC42NTNoLjg1NGMxLjUxLjA1NCAyLjc2OS41NzggMy43NzMgMS41NzQgMS4wMDQuOTk1IDEuNTI0IDIuMjQ5IDEuNTYgMy43NnY3LjM2Yy0uMDM2IDEuNTEtLjU1NiAyLjc2OS0xLjU2IDMuNzczcy0yLjI2MiAxLjUyNC0zLjc3MyAxLjU2SDUuMzMzYy0xLjUxLS4wMzYtMi43NjktLjU1Ni0zLjc3My0xLjU2Uy4wMzYgMTguODU4IDAgMTcuMzQ3di03LjM2Yy4wMzYtMS41MTEuNTU2LTIuNzY1IDEuNTYtMy43NiAxLjAwNC0uOTk2IDIuMjYyLTEuNTIgMy43NzMtMS41NzRoLjc3NGwtMS4xNzQtMS4xMmExLjIzNCAxLjIzNCAwIDAgMS0uMzczLS45MDZjMC0uMzU2LjEyNC0uNjU4LjM3My0uOTA3bC4wMjctLjAyN2MuMjY3LS4yNDkuNTczLS4zNzMuOTItLjM3My4zNDcgMCAuNjUzLjEyNC45Mi4zNzNMOS42NTMgNC40NGMuMDcxLjA3MS4xMzQuMTQyLjE4Ny4yMTNoNC4yNjdhLjgzNi44MzYgMCAwIDEgLjE2LS4yMTNsMi44NTMtMi43NDdjLjI2Ny0uMjQ5LjU3My0uMzczLjkyLS4zNzMuMzQ3IDAgLjY2Mi4xNTEuOTI5LjQuMjY3LjI0OS4zOTEuNTUxLjM5MS45MDcgMCAuMzU1LS4xMjQuNjU3LS4zNzMuOTA2ek01LjMzMyA3LjI0Yy0uNzQ2LjAxOC0xLjM3My4yNzYtMS44OC43NzMtLjUwNi40OTgtLjc2OSAxLjEzLS43ODYgMS44OTR2Ny41MmMuMDE3Ljc2NC4yOCAxLjM5NS43ODYgMS44OTMuNTA3LjQ5OCAxLjEzNC43NTYgMS44OC43NzNoMTMuMzM0Yy43NDYtLjAxNyAxLjM3My0uMjc1IDEuODgtLjc3My41MDYtLjQ5OC43NjktMS4xMjkuNzg2LTEuODkzdi03LjUyYy0uMDE3LS43NjUtLjI4LTEuMzk2LS43ODYtMS44OTQtLjUwNy0uNDk3LTEuMTM0LS43NTUtMS44OC0uNzczek04IDExLjEwN2MuMzczIDAgLjY4NC4xMjQuOTMzLjM3My4yNS4yNDkuMzgzLjU2OS40Ljk2djEuMTczYy0uMDE3LjM5MS0uMTUuNzExLS40Ljk2LS4yNDkuMjUtLjU2LjM3NC0uOTMzLjM3NHMtLjY4NC0uMTI1LS45MzMtLjM3NGMtLjI1LS4yNDktLjM4My0uNTY5LS40LS45NlYxMi40NGMwLS4zNzMuMTI5LS42ODkuMzg2LS45NDcuMjU4LS4yNTcuNTc0LS4zODYuOTQ3LS4zODZ6bTggMGMuMzczIDAgLjY4NC4xMjQuOTMzLjM3My4yNS4yNDkuMzgzLjU2OS40Ljk2djEuMTczYy0uMDE3LjM5MS0uMTUuNzExLS40Ljk2LS4yNDkuMjUtLjU2LjM3NC0uOTMzLjM3NHMtLjY4NC0uMTI1LS45MzMtLjM3NGMtLjI1LS4yNDktLjM4My0uNTY5LS40LS45NlYxMi40NGMuMDE3LS4zOTEuMTUtLjcxMS40LS45Ni4yNDktLjI0OS41Ni0uMzczLjkzMy0uMzczWiIvPjwvc3ZnPg==",
+  "youtube": "PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+WW91VHViZTwvdGl0bGU+PHBhdGggZD0iTTIzLjQ5OCA2LjE4NmEzLjAxNiAzLjAxNiAwIDAgMC0yLjEyMi0yLjEzNkMxOS41MDUgMy41NDUgMTIgMy41NDUgMTIgMy41NDVzLTcuNTA1IDAtOS4zNzcuNTA1QTMuMDE3IDMuMDE3IDAgMCAwIC41MDIgNi4xODZDMCA4LjA3IDAgMTIgMCAxMnMwIDMuOTMuNTAyIDUuODE0YTMuMDE2IDMuMDE2IDAgMCAwIDIuMTIyIDIuMTM2YzEuODcxLjUwNSA5LjM3Ni41MDUgOS4zNzYuNTA1czcuNTA1IDAgOS4zNzctLjUwNWEzLjAxNSAzLjAxNSAwIDAgMCAyLjEyMi0yLjEzNkMyNCAxNS45MyAyNCAxMiAyNCAxMnMwLTMuOTMtLjUwMi01LjgxNHpNOS41NDUgMTUuNTY4VjguNDMyTDE1LjgxOCAxMmwtNi4yNzMgMy41Njh6Ii8+PC9zdmc+",
+  "zhihu": "PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+WmhpaHU8L3RpdGxlPjxwYXRoIGQ9Ik01LjcyMSAwQzIuMjUxIDAgMCAyLjI1IDAgNS43MTlWMTguMjhDMCAyMS43NTEgMi4yNTIgMjQgNS43MjEgMjRoMTIuNTZDMjEuNzUxIDI0IDI0IDIxLjc1IDI0IDE4LjI4MVY1LjcyQzI0IDIuMjQ5IDIxLjc1IDAgMTguMjgxIDB6bTEuOTY0IDQuMDc4Yy0uMjcxLjczLS41IDEuNDM0LS42OCAyLjExaDQuNTg3Yy41NDUtLjAwNi40NDUgMS4xNjguNDQ1IDEuMTcxSDkuMzg0YTU4LjEwNCA1OC4xMDQgMCAwMS0uMTEyIDMuNzk3aDIuNzEyYy4zODguMDIzLjM5MyAxLjI1MS4zOTMgMS4yNjZIOS4xODNhOS4yMjMgOS4yMjMgMCAwMS0uNDA4IDIuMTAybC43NTctLjYwNGMuNDUyLjQ1NiAxLjUxMiAxLjcxMiAxLjkwNiAyLjE3Ny40NzMuNjgxLjA2MyAyLjA4MS4wNjMgMi4wODFsLTIuNzk0LTMuMzgyYy0uNjUzIDIuNTE4LTEuODQ1IDMuNjA3LTEuODQ1IDMuNjA3LS41MjMuNDY4LTEuNTguODItMi42NC41MTYgMi4yMTgtMS43MyAzLjQ0LTMuOTE3IDMuNjY3LTYuNDk3SDQuNDkxYzAtLjAxNS4xOTctMS4yNDMuODA2LTEuMjY2aDIuNzFjLjAyNC0uMzIuMDg2LTMuMjU0LjA4Ni0zLjc5N0g2LjU5OGMtLjEzNi40MDYtLjE1OC40NDctLjI2OC43NTMtLjU5NCAxLjA5NS0xLjYwMyAxLjEyMi0xLjkwNyAxLjE1NS45MDYtMS44MjEgMS40MTYtMy42IDEuNTkxLTQuMDY0LjQyNS0xLjEyNCAxLjY3MS0xLjEyNSAxLjY3MS0xLjEyNXpNMTMuMDc4IDZoNi4zNzd2MTEuMzNoLTIuNTczbC0yLjE4NCAxLjM3My0uNDAxLTEuMzczaC0xLjIxOXptMS4zMTMgMS4yMTl2OC44NmguNjIzbC4yNjMuOTM3IDEuNDU1LS45MzhoMS40NTZ2LTguODZ6Ii8+PC9zdmc+",
+  "reddit": "PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+UmVkZGl0PC90aXRsZT48cGF0aCBkPSJNMTIgMEM1LjM3MyAwIDAgNS4zNzMgMCAxMmMwIDMuMzE0IDEuMzQzIDYuMzE0IDMuNTE1IDguNDg1bC0yLjI4NiAyLjI4NkMuNzc1IDIzLjIyNSAxLjA5NyAyNCAxLjczOCAyNEgxMmM2LjYyNyAwIDEyLTUuMzczIDEyLTEyUzE4LjYyNyAwIDEyIDBabTQuMzg4IDMuMTk5YzEuMTA0IDAgMS45OTkuODk1IDEuOTk5IDEuOTk5IDAgMS4xMDUtLjg5NSAyLTEuOTk5IDItLjk0NiAwLTEuNzM5LS42NTctMS45NDctMS41Mzl2LjAwMmMtMS4xNDcuMTYyLTIuMDMyIDEuMTUtMi4wMzIgMi4zNDF2LjAwN2MxLjc3Ni4wNjcgMy40LjU2NyA0LjY4NiAxLjM2My40NzMtLjM2MyAxLjA2NC0uNTggMS43MDctLjU4IDEuNTQ3IDAgMi44MDIgMS4yNTQgMi44MDIgMi44MDIgMCAxLjExNy0uNjU1IDIuMDgxLTEuNjAxIDIuNTMxLS4wODggMy4yNTYtMy42MzcgNS44NzYtNy45OTcgNS44NzYtNC4zNjEgMC03LjkwNS0yLjYxNy03Ljk5OC01Ljg3LS45NTQtLjQ0Ny0xLjYxNC0xLjQxNS0xLjYxNC0yLjUzOCAwLTEuNTQ4IDEuMjU1LTIuODAyIDIuODAzLTIuODAyLjY0NSAwIDEuMjM5LjIxOCAxLjcxMi41ODUgMS4yNzUtLjc5IDIuODgxLTEuMjkxIDQuNjQtMS4zNjV2LS4wMWMwLTEuNjYzIDEuMjYzLTMuMDM0IDIuODgtMy4yMDcuMTg4LS45MTEuOTkzLTEuNTk1IDEuOTU5LTEuNTk1Wm0tOC4wODUgOC4zNzZjLS43ODQgMC0xLjQ1OS43OC0xLjUwNiAxLjc5Ny0uMDQ3IDEuMDE2LjY0IDEuNDI5IDEuNDI2IDEuNDI5Ljc4NiAwIDEuMzcxLS4zNjkgMS40MTgtMS4zODUuMDQ3LTEuMDE3LS41NTMtMS44NDEtMS4zMzgtMS44NDFabTcuNDA2IDBjLS43ODYgMC0xLjM4NS44MjQtMS4zMzggMS44NDEuMDQ3IDEuMDE3LjYzNCAxLjM4NSAxLjQxOCAxLjM4NS43ODUgMCAxLjQ3My0uNDEzIDEuNDI2LTEuNDI5LS4wNDYtMS4wMTctLjcyMS0xLjc5Ny0xLjUwNi0xLjc5N1ptLTMuNzAzIDQuMDEzYy0uOTc0IDAtMS45MDcuMDQ4LTIuNzcuMTM1LS4xNDcuMDE1LS4yNDEuMTY4LS4xODMuMzA1LjQ4MyAxLjE1NCAxLjYyMiAxLjk2NCAyLjk1MyAxLjk2NCAxLjMzIDAgMi40Ny0uODEgMi45NTMtMS45NjQuMDU3LS4xMzctLjAzNy0uMjktLjE4NC0uMzA1LS44NjMtLjA4Ny0xLjc5NS0uMTM1LTIuNzY5LS4xMzVaIi8+PC9zdmc+",
+  "github": "PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+R2l0SHViPC90aXRsZT48cGF0aCBkPSJNMTIgLjI5N2MtNi42MyAwLTEyIDUuMzczLTEyIDEyIDAgNS4zMDMgMy40MzggOS44IDguMjA1IDExLjM4NS42LjExMy44Mi0uMjU4LjgyLS41NzcgMC0uMjg1LS4wMS0xLjA0LS4wMTUtMi4wNC0zLjMzOC43MjQtNC4wNDItMS42MS00LjA0Mi0xLjYxQzQuNDIyIDE4LjA3IDMuNjMzIDE3LjcgMy42MzMgMTcuN2MtMS4wODctLjc0NC4wODQtLjcyOS4wODQtLjcyOSAxLjIwNS4wODQgMS44MzggMS4yMzYgMS44MzggMS4yMzYgMS4wNyAxLjgzNSAyLjgwOSAxLjMwNSAzLjQ5NS45OTguMTA4LS43NzYuNDE3LTEuMzA1Ljc2LTEuNjA1LTIuNjY1LS4zLTUuNDY2LTEuMzMyLTUuNDY2LTUuOTMgMC0xLjMxLjQ2NS0yLjM4IDEuMjM1LTMuMjItLjEzNS0uMzAzLS41NC0xLjUyMy4xMDUtMy4xNzYgMCAwIDEuMDA1LS4zMjIgMy4zIDEuMjMuOTYtLjI2NyAxLjk4LS4zOTkgMy0uNDA1IDEuMDIuMDA2IDIuMDQuMTM4IDMgLjQwNSAyLjI4LTEuNTUyIDMuMjg1LTEuMjMgMy4yODUtMS4yMy42NDUgMS42NTMuMjQgMi44NzMuMTIgMy4xNzYuNzY1Ljg0IDEuMjMgMS45MSAxLjIzIDMuMjIgMCA0LjYxLTIuODA1IDUuNjI1LTUuNDc1IDUuOTIuNDIuMzYuODEgMS4wOTYuODEgMi4yMiAwIDEuNjA2LS4wMTUgMi44OTYtLjAxNSAzLjI4NiAwIC4zMTUuMjEuNjkuODI1LjU3QzIwLjU2NSAyMi4wOTIgMjQgMTcuNTkyIDI0IDEyLjI5N2MwLTYuNjI3LTUuMzczLTEyLTEyLTEyIi8+PC9zdmc+",
+  "stackoverflow": "PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+U3RhY2sgT3ZlcmZsb3c8L3RpdGxlPjxwYXRoIGQ9Ik0xNS43MjUgMGwtMS43MiAxLjI3NyA2LjM5IDguNTg4IDEuNzE2LTEuMjc3TDE1LjcyNSAwem0tMy45NCAzLjQxOGwtMS4zNjkgMS42NDQgOC4yMjUgNi44NSAxLjM2OS0xLjY0NC04LjIyNS02Ljg1em0tMy4xNSA0LjQ2NWwtLjkwNSAxLjk0IDkuNzAyIDQuNTE3LjkwNC0xLjk0LTkuNzAxLTQuNTE3em0tMS44NSA0Ljg2bC0uNDQgMi4wOTMgMTAuNDczIDIuMjAxLjQ0LTIuMDkyLTEwLjQ3My0yLjIwM3pNMS44OSAxNS40N1YyNGgxOS4xOXYtOC41M2gtMi4xMzN2Ni4zOTdINC4wMjF2LTYuMzk2SDEuODl6bTQuMjY1IDIuMTMzdjIuMTNoMTAuNjZ2LTIuMTNINi4xNTRaIi8+PC9zdmc+",
+  "taobao": "PHN2ZyByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48dGl0bGU+VGFvYmFvPC90aXRsZT48cGF0aCBkPSJNMjEuMzA5OSA5LjkwMDhjLjUyODUgMCAuOTU4NC40Mjg0Ljk1ODQuOTU4OSAwIC41Mjc2LS40Mjk5Ljk1OC0uOTU4NC45NTgtLjUyNzYgMC0uOTU4NS0uNDMwNC0uOTU4NS0uOTU4IDAtLjUzMDUuNDMwOS0uOTU5Ljk1ODUtLjk1OXptMi4zODk5IDMuMDQ2MmgtMTAuNDA4di0uOTU5NWg0LjE1VjkuNzU5MWgtMi44ODY5di0uNzY4aDIuODg2OHYtLjkyMzRoLTIuNTA4di4yMDM0aC0xLjY0MThWNS4zNzMzaDEuNjQxOHYuMzQ5N2MuNDk0NS0uMDYwNyAxLjQ2My0uMTgxNCAyLjUxNzUtLjI5NTZ2LS44MjU3aDEuODUyMnYuNjQwOGMuOTI0OS0uMDgwNyAxLjc1My0uMTMxMiAyLjIxMS0uMTExMiAxLjQ4OS4wNzE2IDIuNDQ0OS4yODE2IDIuNDg1IDEuMjczLjAzNTYuOTg5LTEuNDI0NCAxLjkwNDMtMS40MjQ0IDEuOTA0M2wtLjQ1MDktLjQzMzh2LjE5MjloLTIuODExNnYuOTIzM2gzLjIyOXYuNzY4aC0zLjIyOXYyLjIyODVoNC4zODczdi45NTk1ek0yMS41MjU5IDcuMjk5bC0uMDExNS0uMDExNXMxLjM3MjItLjc1OTUuMzQyNy0xLjI3MmMtLjg2MzMtLjQzLTUuNTM0Ni4zMDU2LTYuOTIzNC42MjU3di42NTc4aDYuNTkyMnpNMS44ODIyIDYuNDE2NmMuNTUxNSAwIC45OTg1LS40NDkuOTk4NS0xIDAtLjU1MzEtLjQ0Ny0uOTk5NS0uOTk4NS0uOTk5NWEuOTk4NC45OTg0IDAgMDAtMS4wMDEuOTk5NWMwIC41NTEuNDQ2MyAxIDEuMDAxIDF6bTMuNDA5NC0uODU5NmMuMjUyLS40MzY0LjM3MTctLjcxOTUuMzcxNy0uNzE5NWwtMS40NjYtLjQxMjNTMy42MDY4IDYuMzU0NiAyLjU1MjcgNy4yNTNjMCAwIDEuMDE5NS41ODk3IDEuMDA5NS41NzMyYTkuNjQ0NCA5LjY0NDQgMCAwMC43ODItLjg3OTNjLjIzNDUtLjEwMTcuNDU4NS0uMTk4LjY3OTQtLjI4NzYtLjI3MTUuNDg3LS43MDk0IDEuMjE5LTEuMTQ3OCAxLjY4MDlsLjYxNzguNTM4NXMuNDE5OC0uNDAzMy44NzkyLS44OTA3aC41MjQ2di44OTkzSDMuODU1N3YuNzIwNGgyLjA0MTZ2MS43MjM1Yy0uMDI1IDAtLjA1MjEgMC0uMDc4Mi0uMDAyLS4yMjQtLjAxMDYtLjU3NTEtLjA0NzYtLjcxMjQtLjI2NS0uMTY3OC0uMjYzNi0uMDQ0LS43NDk2LS4wMzQ2LTEuMDQ1N0gzLjY2MDhsLS4wNDk2LjAyNnMtLjUxNyAyLjMxNDIgMS40ODkgMi4yNjIxYzEuODc5My4wNTIxIDIuOTU0NC0uNTIzIDMuNDcyNS0uOTE3OGwuMjA2NC43NjQ1IDEuMTU4My0uNDgyNS0uNzg1LTEuOTE4My0uOTQxLjI5Mi4xNzY0LjY1NzRjLS4yNDE1LjE4MDktLjUxOC4zMTU3LS44MTg3LjQxMzRWOS42MDc2aDEuOTk1di0uNzIwNGgtMS45OTV2LS44OTkzaDIuMDAzdi0uNzJoLTMuNTU3Yy4yNTY1LS4zMTExLjQ1ODktLjU5ODIuNTA5NS0uNzhMNS45MDU4IDYuMzJjMi42NjAzLS45NTE5IDQuMTQwOC0uNzg4NiA0LjEyNzguNzczdjQuMTEyOHMuMTU2OCAxLjQxMjQtMS40NjEgMS4zMTA3bC0uODc1Ny0uMTg4LS4yMDcuODMwN3MzLjc4MjIgMS4wODEyIDQuMDkxMy0xLjgyNDZjLjMwOTYtMi45MDU4LS4wNzY3LTQuNzU3Ni0uMDc2Ny00Ljc1NzZzLS4zNDUxLTIuNjgyNC02LjIxMy0xLjAyek0uMDU4MiAxMi4xNTM0bDEuNTg2Ny45OTA1YzEuMDk2Ny0yLjM4MTMgMS4wMjY1LTIuMDY1NyAxLjMwMi0yLjkyLjI4MzItLjg3MzcuMzQ1My0xLjU0LS4xMzYyLTIuMDIzLS42MTcyLS42MTk3LS42ODQ0LS42NzczLTEuNjAxNy0xLjM1ODJMLjU0ODcgNy44NTYybDEuMjE2NC43NTc2cy44MTQxLjQxNTMuNDI3NCAxLjE5MDNjLS4zNjE3LjczNzUtMi4xMzQzIDIuMzQ5My0yLjEzNDMgMi4zNDkzem0xOS45NCA2Ljg0ODRzLS4wMTg2LjUyMy0uNjcwNC41MjNjLS41ODkyIDAtLjYzNjMtLjQxMTMtLjYzNjMtLjQxMTMtLjI0ODUuMjk5Ni0uNjIwNy40NTQ5LTEuMDY5Ni40NTQ5LS43NjA2IDAtMS4yOTYxLS41MTM1LTEuMjk2MS0xLjI4OTYgMC0uNzg2LjU1NzYtMS4yOCAxLjM5ODMtMS4yOC4zODMyIDAgLjcyNS4xNDYyLjkyNTguNDAzNy4wMDY2LS4wNzA2LjAxMzYtLjEzNjIuMDEzNi0uMTk2OCAwLS41NjIyLS4zMDkyLS44MTI3LTEuMDEtLjgxMjctLjMzODIgMC0uNjY1OS4wNDg2LTEuMDEzNi4xNDA4LjExMDctLjIxOS4xOTI0LS4zNzkzLjI5NzEtLjQ1NzQuMTIwMi0uMDk3Mi40Mjk0LS4xNDA4Ljk0MTktLjE0MDggMS4yNjkgMCAxLjc0Mi40MjU5IDEuNzQyIDEuNDI3OXYxLjIwMjRjMCAuMzE2MS4wMzMuNDM1OS4zNzcyLjQzNTl6bS0xLjMyNzItLjc0NWMwLS40ODE1LS4yNTU1LS43NDctLjYzNzgtLjc0Ny0uNDA0MyAwLS42NjY4LjI4MjUtLjY2NjguNzU5NSAwIC40NjcuMjc3NS43NjE1LjY1MzMuNzYxNS4zODgyIDAgLjY1MTMtLjI3NS42NTEzLS43NzR6bTUuMjcwNi0uNTAxYzAgMS4xNTI4LS42OTI0IDEuODI3MS0xLjc3ODYgMS44MjcxLTEuMDk1NyAwLTEuNzc2Ni0uNjc0My0xLjc3NjYtMS44MjcxIDAtMS4xNTg0LjY4MDktMS44MjUyIDEuNzc2Ni0xLjgyNTIgMS4wODYyIDAgMS43Nzg2LjY3MTkgMS43Nzg2IDEuODI1MnptLTEuMDg2NyAwYzAtLjg2OTMtLjIzNy0xLjI5OTctLjY5Mi0xLjI5OTctLjQ3MzQgMC0uNjkzOC40MzA0LS42OTM4IDEuMjk5NyAwIC44NjYyLjIyMDQgMS4yOTkuNjkzOSAxLjI5OS40NjcgMCAuNjkxOS0uNDMyOC42OTE5LTEuMjk5em0tNy4xMzEzLS4wNDQxYzAgMS4xNzAzLS42NTM0IDEuODU2Ny0xLjU3NjcgMS44NTY3LS40MjMzIDAtLjgwNTYtLjE2MzMtMS4wNDY2LS40NyAwIDAtLjEwODIuNDI2NC0uNjYxOC40MjY0LS42ODg0IDAtLjY2NDQtLjUyMy0uNjY0NC0uNTIzLjM4NjguMDE2NS4zNzU4LS4yMTQ1LjM3NTgtLjQzNnYtMi44ODYyYzAtLjM1NTItLjA3NDItLjQ3OTUtLjQyNjktLjQ4NjUuMDEzNi0uMTA3Mi4wNzc3LS41Mzc2LjY3ODktLjUzNzYuODE1NiAwIC43NjE1LjkxNDkuNzYxNS45MTQ5di43ODZjLjIyOS0uMjY4LjU1MTYtLjM5NDIuOTkwNS0uMzk0Mi45NjI0IDAgMS41Njk3LjY0NDcgMS41Njk3IDEuNzQ5NXptLTEuMDkzNy4wODA2YzAtLjg5ODMtLjI3MTYtMS4zNTU3LS43NjE2LTEuMzU1Ny0uNDM5MyAwLS43NC4zOTY4LS43NCAxLjEwNDd2LjM2MDJjMCAuNzIwNS4zMTUyIDEuMTE2OC43NjMxIDEuMTE2OC40NzcgMCAuNzM4NS0uNDEzNC43Mzg1LTEuMjI2em0tMy4yNDI1LS4wMzY1YzAgMS4xNTI4LS42ODggMS44MjcxLTEuNzgwNiAxLjgyNzEtMS4wOTM3IDAtMS43NzI2LS42NzQzLTEuNzcyNi0xLjgyNzEgMC0xLjE1ODQuNjc4OS0xLjgyNTIgMS43NzI2LTEuODI1MiAxLjA5MjcgMCAxLjc4MDYuNjcxOSAxLjc4MDYgMS44MjUyem0tMS4wODMyIDBjMC0uODY5My0uMjM2LTEuMjk5Ny0uNjk3NC0xLjI5OTctLjQ2NyAwLS42ODc0LjQzMDQtLjY4NzQgMS4yOTk3IDAgLjg2NjIuMjIwNSAxLjI5OS42ODc0IDEuMjk5LjQ2OSAwIC42OTc0LS40MzI4LjY5NzQtMS4yOTl6bS01Ljk4OTUtMi43MTZjLS4yNjguMDc4Mi0uNzkwMS4wOTcyLTEuNTUxNi4wOTcyLS45MjUgMC0xLjUzOTEtLjAzOS0xLjg1NDMtLjAzOS0uNTE5NSAwLS43MjU0LjEzNDItLjkwODguNjU5Mi4zMDA2LS4xMDE3LjY3MjktLjEwODcgMS4xMzUzLS4xMDg3LjM1MTIgMCAuNDEwOC4wNDMxLjQxMDguMjk0MVYxOC44NDZjMCAuMjgyMS4xMTc4LjY3ODkuNzI1NS42Nzg5LjcxMDQgMCAuODM0Ni0uNTI2LjgzNDYtLjUyNi0uMzU1Mi0uMDA3LS40MjQ4LS4xMzEzLS40MjQ4LS40ODY1VjE1Ljk1MmMwLS4yNjc1LjEwMTItLjI3OTUuNDcxLS4yNzk1LjEyNTIgMCAuMjA5NC4wMDcuMjYwNS4wMDcuNTQ1IDAgLjY4ODMtLjEwNDcuOTAxOC0uNjM5OHptMy4xMzAzIDMuOTYycy0uMDE4LjUyMy0uNjY2NC41MjNjLS41NTYgMC0uNjQwMy0uNDExMy0uNjQwMy0uNDExMy0uMjQ4LjI5OTYtLjYyMDcuNDU0OS0xLjA2NTYuNDU0OS0uNzY1NSAwLTEuMjk5Ni0uNTEzNS0xLjI5OTYtMS4yODk2IDAtLjc4Ni41NTctMS4yOCAxLjM5OTMtMS4yOC4zODQzIDAgLjcyNzQuMTQ2Mi45MjU4LjQwMzcuMDAzNi0uMDcwNi4wMTA2LS4xMzYyLjAxMDYtLjE5NjggMC0uNTYyMi0uMzA1MS0uODEyNy0xLjAwNy0uODEyNy0uMzM4MiAwLS42NjY5LjA0ODYtMS4wMTUuMTQwOC4xMTMxLS4yMTkuMTkyMy0uMzc5My4yOTQ1LS40NTc0LjEyOTMtLjA5NzIuNDMyOS0uMTQwOC45NDY5LS4xNDA4IDEuMjY1IDAgMS43NDYuNDI1OSAxLjc0NiAxLjQyNzl2MS4yMDI0YzAgLjMxNjEuMDI3Ni40MzU5LjM3MDguNDM1OXptLTEuMzI2Mi0uNzQ1YzAtLjQ4MTUtLjI1NTUtLjc0Ny0uNjM3OC0uNzQ3LS40MDEzIDAtLjY2NjguMjgyNS0uNjY2OC43NTk1IDAgLjQ2Ny4yNzkuNzYxNS42NTEzLjc2MTUuMzg5MyAwIC42NTMzLS4yNzUuNjUzMy0uNzc0eiIvPjwvc3ZnPg==",
+  "amazon": "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjI0MCAyNTYgNTQ0IDUxMiIgZmlsbD0iY3VycmVudENvbG9yIj48dGl0bGU+QW1hem9uPC90aXRsZT48cGF0aCBkPSJNMjU2LjkgNjQwLjVjMS41LTIuNSA0LTIuNiA3LjQtLjUgNzcuNiA0NSAxNjIuMSA2Ny42IDI1My4zIDY3LjYgNjAuOSAwIDEyMS0xMS40IDE4MC4zLTM0bDYuNy0zYzIuOS0xLjMgNS0yLjEgNi4zLTIuOCA0LjgtMS45IDguMy0xIDExLjIgMi44IDIuNiAzLjcgMS45IDcuMi0yLjYgMTAuMi01LjUgNC4xLTEyLjggOC44LTIxLjUgMTQtMjYuNSAxNS45LTU2LjMgMjguMS04OS4zIDM2LjgtMzIuNyA4LjctNjUgMTMtOTYuNCAxMy00OC4zIDAtOTQuMS04LjUtMTM3LjMtMjUuMy00My4xLTE2LjktODEuNS00MC44LTExNS45LTcxLjUtMi4xLTEuNi0zLjItMy4yLTMuMi00LjcgMC0xIC40LTEuOSAxLjEtMi44bC0uMS4yem0xNDAuMi0xMzIuN2MwLTIxLjQgNS4zLTM5LjggMTUuOS01NSAxMC42LTE1LjIgMjUtMjYuNyA0My41LTM0LjUgMTctNy4xIDM3LjUtMTIuMyA2Mi4xLTE1LjQgOC4zLTEgMjItMi4yIDQxLTMuN3YtNy45YzAtMTkuOC0yLjItMzMuMy02LjQtNDAtNi40LTkuMi0xNi42LTEzLjktMzAuNy0xMy45aC0zLjljLTEwLjIgMS0xOS4xIDQuMi0yNi42IDkuOC03LjUgNS44LTEyLjMgMTMuNC0xNC40IDIzLjQtMS4zIDYuNC00LjQgOS45LTkuMyAxMC45bC01My44LTYuN2MtNS4zLTEuMy03LjktMy44LTcuOS04LjMgMC0xIC4xLTEuOS41LTMuMiA1LjMtMjcuNSAxOC4yLTQ4IDM4LjgtNjEuNSAyMC44LTEzLjEgNDQuOC0yMC44IDcyLjQtMjIuNGgxMS41YzM1LjIgMCA2My4xIDkuMyA4MyAyNy41IDIuOSAzLjIgNS44IDYuNCA4LjYgMTAuMiAyLjYgMy41IDQuOCA2LjcgNiA5LjYgMS42IDIuOSAzLjIgNyA0LjIgMTIuMiAxLjMgNS40IDIuMiA5IDIuOSAxMC45LjYgMi4yIDEuMyA2LjQgMS42IDEzLjEuMiA2LjcuNCAxMC41LjQgMTEuOHYxMTIuN2MwIDggMS4zIDE1LjQgMy41IDIyLjEgMi4yIDYuNyA0LjUgMTEuNSA2LjcgMTQuNGwxMC45IDE0LjRjMS45IDIuOSAyLjkgNS41IDIuOSA3LjcgMCAyLjYtMS4zIDQuOC0zLjggNi43LTI1LjYgMjIuNC0zOS43IDM0LjYtNDEuOSAzNi41LTMuNSAyLjktOCAzLjItMTMuNCAxLTQuMi0zLjUtOC03LjEtMTEuMi0xMC42bC02LjYtNy40Yy0xLjMtMS42LTMuNS00LjUtNi44LTlsLTYuNC05LjNjLTE3LjMgMTguOS0zNC4yIDMwLjctNTEuMiAzNS41LTEwLjUgMy4yLTIzLjMgNC44LTM5LjEgNC44LTIzLjcgMC00My41LTcuMy01OC45LTIyLjEtMTUuNC0xNC43LTIzLTM1LjUtMjMtNjIuN2wtMS4xLTEuNnptODAtOS40YzAgMTIuMSAzIDIxLjggOS4xIDI5LjEgNi4xIDcuMyAxNC40IDEwLjkgMjQuNyAxMC45IDEgMCAyLjMtLjEgNC4yLS40IDEuOS0uMyAyLjktLjUgMy41LS41IDEzLjEtMy40IDIzLTExLjggMzAuNC0yNS4xIDMuNS02IDYuMS0xMi40IDcuNy0xOS40IDEuOS02LjggMi42LTEyLjYgMi45LTE3LjEuMy00LjIuMy0xMS41LjMtMjEuNFY0NDNjLTE3LjkgMC0zMS43IDEuMy00MSAzLjgtMjcuMiA3LjctNDEgMjUtNDEgNTEuOWwtLjctLjR2LjF6bTE5NS42IDE1MGMuNi0xLjMgMS42LTIuMyAyLjgtMy42IDcuNy01LjIgMTUuMi04LjggMjIuNC0xMC43IDExLjctMi44IDIzLjMtNC43IDM0LjQtNS4xIDMtLjMgNiAwIDguOC42IDEzLjkgMS4zIDIyLjQgMy42IDI1IDcgMS4zIDEuOSAxLjkgNC45IDEuOSA4LjN2My4yYzAgMTAuOS0zIDIzLjctOC45IDM4LjRzLTE0LjIgMjYuNi0yNC43IDM1LjljLTEuNiAxLjMtMyAxLjktNC4yIDEuOS0uNiAwLTEuMyAwLTEuOS0uMy0xLjktLjktMi4zLTIuNi0xLjQtNS4xIDExLjUtMjYuOSAxNy4yLTQ1LjcgMTcuMi01Ni4zIDAtMy4yLS42LTUuOC0xLjktNy4zLTMuMS0zLjUtMTEuNy01LjUtMjYuMS01LjUtNS4yIDAtMTEuNC4zLTE4LjYgMS03LjcgMS0xNC45IDEuOS0yMS4zIDIuOS0xLjkgMC0zLjItLjMtMy44LS45LS42LS42LS44LTEtLjQtMS42IDAtLjQuMS0uNi40LTEuM3YtMS4zbC4zLS4yeiIgLz48L3N2Zz4NCg==",
+};
+const icon = (name) => `<svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${glyphs[name]}</svg>`;
+const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, (character) => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+})[character]);
+const $ = (selector, root = document) => root.querySelector(selector);
+const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
+
+const pages = [
+  ["general", "常规", "settings"], ["appearance", "外观", "palette"],
+  ["engines", "搜索引擎", "search"], ["shortcuts", "快捷键", "keyboard"],
+  ["browser", "浏览器", "browser"], ["history", "搜索历史", "history"],
+  ["ocr", "OCR 搜索", "scan"], ["config", "配置文件", "file-typography"],
+];
+const builtIns = [
+  ["bing", "必应", "bing", "https://www.bing.com/search?q=%s"],
+  ["baidu", "百度", "bd", "https://www.baidu.com/s?wd=%s"],
+  ["google", "Google", "g", "https://www.google.com/search?q=%s"],
+  ["bilibili", "哔哩哔哩", "bili", "https://search.bilibili.com/all?keyword=%s"],
+  ["youtube", "YouTube", "yt", "https://www.youtube.com/results?search_query=%s"],
+  ["zhihu", "知乎", "zh", "https://www.zhihu.com/search?type=content&q=%s"],
+  ["reddit", "Reddit", "rd", "https://www.reddit.com/search/?q=%s"],
+  ["github", "GitHub", "gh", "https://github.com/search?q=%s"],
+  ["stackoverflow", "Stack Overflow", "so", "https://stackoverflow.com/search?q=%s"],
+  ["taobao", "淘宝", "tb", "https://s.taobao.com/search?q=%s"],
+  ["amazon", "Amazon", "amz", "https://www.amazon.com/s?k=%s"],
+  ["x", "X", "x", "https://x.com/search?q=%s"],
+].map(([id, name, alias, url]) => ({ id, name, alias, url, color: "#000000", accent: "#1f75db" }));
+const initialCustom = [
+  { id: "custom-1", name: "维基百科", alias: "wiki", url: "https://zh.wikipedia.org/w/index.php?search=%s", color: "#475469" },
+  { id: "custom-2", name: "MDN Web Docs", alias: "mdn", url: "https://developer.mozilla.org/zh-CN/search?q=%s", color: "#6e477f" },
+];
+const browsers = [
+  { id: "system", name: "跟随 Windows 默认浏览器", path: "" },
+  { id: "edge", name: "Microsoft Edge", path: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe" },
+  { id: "chrome", name: "Google Chrome", path: "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe" },
+  { id: "firefox", name: "Mozilla Firefox", path: "C:\\Program Files\\Mozilla Firefox\\firefox.exe" },
+];
+const historyExamples = [
+  ["DirectWrite 灰度抗锯齿设置", "Visual Studio Code", "bing"],
+  ["Windows 11 Fluent Design", "Microsoft Edge", "google"],
+  ["Rust Windows DPI awareness", "Windows Terminal", "github"],
+  ["鬱鑿齒 · 复杂中文字体字形", "记事本", "baidu"],
+  ["ModelScope PP-OCRv6 tiny 中文文本检测和识别模型", "Microsoft Edge", "bing"],
+  ["Direct2D 小尺寸 SVG 曲线像素对齐与高 DPI 渲染", "Visual Studio Code", "google"],
+  ["Microsoft.WindowsAppSDK 版本说明", "Windows Terminal", "github"],
+  ["RapidOCR 模型字典版本", "Windows 文档与 API 参考阅读器 Preview", "bing"],
+];
+const initialHistory = Array.from({ length: 53 }, (_, index) => {
+  const [query, source, engine] = historyExamples[index % historyExamples.length];
+  return { id: index + 1, query: index < 8 ? query : `${query} · ${index + 1}`, source, engine, time: new Date(2026, 10, 21, 15, 40 - index * 20) };
+});
+const modelBase = "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.9.1/";
+const models = [
+  ["检测模型", "onnx/PP-OCRv6/det/PP-OCRv6_det_tiny.onnx", "PP-OCRv6_det_tiny.onnx"],
+  ["识别模型", "onnx/PP-OCRv6/rec/PP-OCRv6_rec_tiny.onnx", "PP-OCRv6_rec_tiny.onnx"],
+  ["字典", "paddle/PP-OCRv6/rec/PP-OCRv6_rec_tiny/ppocrv6_tiny_dict.txt", "ppocrv6_tiny_dict.txt"],
+];
+const demoFolders = [
+  ["D:\\OCR\\PP-OCRv6-tiny", "包含三份模型文件"],
+  ["D:\\OCR\\模型不完整", "缺少字典"],
+  ["D:\\OCR\\模型校验失败", "识别模型文件校验失败"],
+];
+
+const minIconSize = 1;
+const maxIconSize = 36;
+const defaultFont = "Microsoft YaHei UI";
+const defaultFontSize = 20;
+const minFontSize = 8;
+const maxFontSize = 72;
+const fontSizes = [12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 48];
+const fontStyles = {
+  regular: ["常规", 400, "normal"],
+  light: ["细体", 300, "normal"],
+  semibold: ["半粗体", 600, "normal"],
+  bold: ["粗体", 700, "normal"],
+  italic: ["倾斜", 400, "italic"],
+  boldItalic: ["粗斜体", 700, "italic"],
+};
+const fontFamilies = [
+  [defaultFont, "微软雅黑 UI", ["regular", "light", "bold"]],
+  ["SimHei", "黑体", ["regular"]],
+  ["SimSun", "宋体", ["regular"]],
+  ["FangSong", "仿宋", ["regular"]],
+  ["KaiTi", "楷体", ["regular"]],
+  ["Segoe UI", "Segoe UI", ["regular", "light", "semibold", "bold", "italic", "boldItalic"]],
+  ["Arial", "Arial", ["regular", "bold", "italic", "boldItalic"]],
+  ["Microsoft JhengHei UI", "微软正黑体 UI", ["regular", "light", "bold"]],
+  ["Calibri", "Calibri", ["regular", "light", "bold", "italic", "boldItalic"]],
+  ["Consolas", "Consolas", ["regular", "bold", "italic", "boldItalic"]],
+  ["Georgia", "Georgia", ["regular", "bold", "italic", "boldItalic"]],
+  ["Times New Roman", "Times New Roman", ["regular", "bold", "italic", "boldItalic"]],
+];
+// The Windows app should open Settings > Personalization > Fonts through this URI.
+const windowsFontSettings = "ms-settings:fonts";
+const fontScripts = {
+  "zh-CN": ["简体中文", "复杂中文 鬱鑿齒 · Search 123"],
+  "zh-TW": ["繁體中文", "繁體中文 龍龜鬱 · Search 123"],
+  "en": ["西欧语言", "AaBbYyZz · Café 123"],
+};
+const prefs = {
+  startup: false, reveal: true, tray: true, language: "zh-CN",
+  font: defaultFont, fontFile: "", fontPreview: "", fontStyle: "regular", fontSize: defaultFontSize, fontScript: "zh-CN",
+  names: true, colorIcons: false, iconSize: 20,
+  defaultEngine: "bing", pins: ["github", "google"], custom: structuredClone(initialCustom), builtInOverrides: {}, engineOrder: [], disabledEngines: [],
+  main: "双击左 Alt", selection: "", clipboard: "", ocrKey: "Alt+Shift+O",
+  selectionEngine: "bing", selectionAction: "preview", excluded: [],
+  browser: "system", browserPath: "", history: false,
+  ocrEnabled: false, ocrPath: "", configPath: "C:\\Users\\User\\AppData\\Local\\YiSouRust\\settings.json",
+};
+const state = {
+  edition: "full", page: "general", scroll: new Map(), engineFilter: "", editor: null,
+  engineMenu: null, engineDrag: null, recording: null, historyRows: initialHistory, historyQuery: "", historySource: "",
+  historyPage: 0, language: prefs.language, browser: prefs.browser, browserPath: prefs.browserPath,
+  exclusion: [], ocrPath: "", ocrStatus: "initial", nextConfig: "",
+  feedback: new Map(),
+};
+const content = $("#content");
+const nav = $("#nav");
+const dialog = $("#dialog");
+const menu = $("#engine-menu");
+const fileInput = $("#local-file");
+
+const englishStrings = new Map(`
+易搜设置|YiSou Settings
+原型预览|Prototype
+原型版本|Edition
+窗口尺寸|Window size
+标准|Standard
+紧凑|Compact
+展开窗口|Expand window
+还原窗口|Restore window
+设置页面|Settings navigation
+设置内容|Settings content
+常规|General
+外观|Appearance
+搜索框|Search bar
+右侧图标大小|Engine icon size
+减小图标|Decrease icon size
+增大图标|Increase icon size
+使用多色图标|Use color icons
+菜单预览|Menu preview
+导入与导出|Import and export
+搜索引擎列表|Search engine list
+配置文件路径|Configuration file path
+搜索引擎|Search engines
+快捷键|Shortcuts
+浏览器|Browser
+搜索历史|Search history
+OCR 搜索|OCR search
+配置文件|Configuration
+启动与后台|Startup and background
+登录 Windows 时启动|Start with Windows
+登录后在系统托盘等待。|Stay in the system tray after sign-in.
+手动启动时显示搜索框|Show search when launched manually
+关闭后，手动启动时只驻留托盘。|When off, manual launch opens YiSou in the tray.
+关闭搜索框后驻留托盘|Keep running in the system tray
+关闭此项后，按 Esc 退出易搜。|When off, pressing Esc exits YiSou.
+界面语言|Interface language
+跟随系统|System default
+简体中文|Simplified Chinese
+应用|Apply
+搜索框字体|Search box font
+当前字体|Current font
+选择系统字体|Choose system font
+打开字体文件|Open font file
+恢复默认|Restore default
+20 DIP 搜索框预览|20 DIP search box preview
+搜索引擎菜单|Search engine menu
+磁贴样式|Tile style
+显示名称|Show names
+仅显示图标|Icons only
+字体|Font
+搜索字体|Search fonts
+字形|Font style
+大小（DIP）|Size (DIP)
+脚本|Script
+示例|Sample
+常规字形|Regular
+细体|Light
+半粗体|Semibold
+粗体|Bold
+倾斜|Italic
+粗斜体|Bold italic
+繁體中文|Traditional Chinese
+西欧语言|Western
+显示更多字体|Show more fonts
+打开 Windows 设置中的「个性化 → 字体」|Open Personalization → Fonts in Windows Settings
+没有匹配的字体。|No matching fonts.
+添加引擎|Add engine
+筛选名称或 #别名|Filter by name or #alias
+置顶快捷位|Pinned shortcuts
+仅在搜索框中生效。|Available in the search box.
+空|Empty
+未分配|Unassigned
+引擎|Engine
+别名|Alias
+状态|Status
+启用|Enabled
+至少保留一个已启用的搜索引擎。|Keep at least one search engine enabled.
+默认|Default
+已置顶|Pinned
+设为默认|Set as default
+更多操作|More actions
+置顶|Pin
+取消置顶|Unpin
+没有符合条件的引擎|No matching engines
+清除筛选|Clear filters
+编辑|Edit
+上移|Move up
+下移|Move down
+删除|Delete
+删除引擎|Delete engine
+添加搜索引擎|Add search engine
+编辑搜索引擎|Edit search engine
+返回列表|Back to list
+名称|Name
+别名（可选）|Alias (optional)
+例如 wiki|For example, wiki
+搜索网址|Search URL
+用 %s 表示查询词。|Use %s as the query placeholder.
+图标颜色|Icon color
+选择强调色|Choose accent color
+关于强调色|About the accent color
+没有图标时，强调色用作引擎首字母图标的底色。导入的 SVG 若使用 currentColor，也会读取这个颜色。单色配色单独控制单色模式下的图标颜色。|The accent color fills the background of the initial-based icon when there is no icon. Imported SVGs also use it for currentColor. The monochrome color separately tints icons in monochrome mode.
+拖放到此处|Drop here
+导入图标|Import icon
+移除文件图标|Remove file icon
+测试搜索|Test search
+保存|Save
+取消|Cancel
+关闭|Close
+放弃未保存的修改？|Discard unsaved changes?
+当前引擎表单中的修改将被丢弃。|Changes to this engine will be discarded.
+放弃修改|Discard changes
+请输入引擎名称。|Enter an engine name.
+已存在相同别名。|This alias is already in use.
+请输入包含 %s 的有效 HTTP 或 HTTPS 搜索网址。|Enter a valid HTTP or HTTPS search URL with %s.
+全局快捷键|Global shortcuts
+唤出易搜|Show YiSou
+有选区时直接搜索，其余时候打开搜索框。|Search selected text, or open the search box.
+划词搜索|Search selected text
+使用指定的引擎和触发动作。|Uses the selected engine and action.
+划词搜索引擎|Engine for selected text
+触发动作|Action
+直接搜索|Search immediately
+打开搜索框|Open search box
+剪贴板搜索|Search clipboard
+使用默认引擎搜索剪贴板里的文字。|Uses the default engine to search clipboard text.
+OCR 快捷键|OCR shortcut
+前往设置|Open settings
+未设置|Unassigned
+双击左 Alt|Double-press left Alt
+录制快捷键|Record shortcut
+按下快捷键…|Press a shortcut…
+按下快捷键 · Esc 取消 · Backspace 清除|Press a shortcut · Esc to cancel · Backspace to clear
+此组合键已由系统保留。|This shortcut is reserved by Windows.
+需要包含 Ctrl、Alt 或 Win（F1–F12 除外）。|Include Ctrl, Alt, or Win (except for F1–F12).
+覆盖|Replace
+双击 Alt 排除的应用|Apps excluded from double-press Alt
+添加排除应用|Add an excluded app
+没有排除应用|No excluded apps
+例如 mstsc.exe|For example, mstsc.exe
+添加|Add
+已应用排除列表。|Exclusions applied.
+打开搜索结果|Open search results
+跟随 Windows 默认浏览器|Use the Windows default browser
+选择其他浏览器…|Choose another browser…
+浏览器程序|Browser executable
+浏览…|Browse…
+已应用浏览器设置。|Browser preference applied.
+请输入完整的 Windows .exe 路径。|Enter the full Windows .exe path.
+本机搜索记录|Local search history
+记录搜索历史|Record search history
+关闭后仍可查看已有记录。|Existing records stay visible when recording is off.
+搜索内容|Search terms
+来源应用|Source application
+再次搜索|Search again
+删除记录|Delete record
+已删除这条记录。|Record deleted.
+上一页|Previous
+下一页|Next
+没有符合筛选条件的记录|No matching records
+暂无搜索记录|No search history
+截图文字搜索|Search text from screenshots
+启用 OCR 搜索|Enable OCR search
+启用前需要配置并验证本地 OCR 模型。|Configure and verify a local OCR model before enabling.
+本地模型|Local model
+模型文件夹|Model folder
+选择模型文件夹|Select model folder
+选择文件夹|Select folder
+将检测模型、识别模型和字典放在同一个目录。|Place the detector, recognizer, and dictionary in the same folder.
+检测模型|Detector
+识别模型|Recognizer
+字典|Dictionary
+包含三份模型文件|All three files present
+缺少字典|Dictionary missing
+识别模型文件校验失败|Recognizer failed verification
+待配置|Setup required
+正在检查模型…|Checking model…
+模型可用|Model ready
+请先选择本地模型文件夹。|Choose a local model folder first.
+此原型目录未配置。请从「浏览」中选择样例。|Choose a sample directory with Browse.
+OCR 搜索已启用。|OCR search enabled.
+OCR 搜索已关闭。|OCR search disabled.
+已应用模型目录。|Model folder applied.
+当前配置|Current configuration
+更换位置…|Change location…
+更换配置位置|Change configuration location
+配置文件路径|Configuration file path
+确认|Confirm
+完整配置|Full configuration
+设置备份|Settings backup
+导入将替换当前配置。|Import replaces the current configuration.
+导入配置…|Import settings…
+导出配置…|Export settings…
+搜索引擎包|Search engine pack
+搜索引擎与置顶顺序|Engines and pin order
+导入会合并自定义引擎与置顶顺序。|Import merges custom engines and pin order.
+导入引擎…|Import engines…
+导出引擎…|Export engines…
+导入|Import
+替换当前配置？|Replace current configuration?
+导入搜索引擎包？|Import search engine pack?
+`.trim().split("\n").map((entry) => entry.split("|")));
+const sourceText = new WeakMap();
+const sourceAttributes = new WeakMap();
+const localizableAttributes = ["aria-label", "title", "placeholder"];
+
+function uiLanguage() {
+  if (prefs.language === "en-US" || (prefs.language === "system" && !navigator.language.toLowerCase().startsWith("zh"))) return "en";
+  return "zh-CN";
+}
+function localizeText(text) {
+  if (uiLanguage() !== "en") return text;
+  const normalized = text.trim();
+  const direct = englishStrings.get(normalized);
+  if (direct) return text.replace(normalized, direct);
+  const patterns = [
+    [/^(.+)：更多操作$/, (_, name) => `More actions for ${name}`],
+    [/^启用「(.+)」$/, (_, name) => `Enable ${name}`],
+    [/^拖动排序「(.+)」$/, (_, name) => `Reorder ${name}`],
+    [/^此组合键已用于「(.+)」。$/, (_, name) => `This shortcut is already assigned to ${englishStrings.get(name) || name}.`],
+    [/^缺少文件 · (.+)$/, (_, file) => `Missing file · ${file}`],
+    [/^识别模型校验失败 · (.+)$/, (_, file) => `Recognizer failed verification · ${file}`],
+    [/^(\d+) 条 · 第 (\d+) \/ (\d+) 页$/, (_, count, page, total) => `${count} results · Page ${page} of ${total}`],
+  ];
+  for (const [pattern, replacement] of patterns) {
+    if (pattern.test(normalized)) return text.replace(pattern, replacement);
+  }
+  return text;
+}
+function localize(root) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+  for (let node = root; node; node = walker.nextNode()) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (!node.data.trim()) continue;
+      if (!sourceText.has(node)) sourceText.set(node, node.data);
+      const translated = localizeText(sourceText.get(node));
+      if (node.data !== translated) node.data = translated;
+    }
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const originals = sourceAttributes.get(node) || {};
+      for (const attribute of localizableAttributes) {
+        if (!node.hasAttribute(attribute)) continue;
+        originals[attribute] ??= node.getAttribute(attribute);
+        const translated = localizeText(originals[attribute]);
+        if (node.getAttribute(attribute) !== translated) node.setAttribute(attribute, translated);
+      }
+      sourceAttributes.set(node, originals);
+    }
+  }
+}
+const localeObserver = new MutationObserver((records) => {
+  if (uiLanguage() !== "en") return;
+  for (const { addedNodes } of records) {
+    for (const node of addedNodes) localize(node);
+  }
+});
+localeObserver.observe(document.body, { childList: true, subtree: true });
+
+function engines() {
+  const items = [...builtIns.map((engine) => prefs.builtInOverrides[engine.id] || engine), ...prefs.custom];
+  const byId = new Map(items.map((engine) => [engine.id, engine]));
+  return [...new Set([...prefs.engineOrder, ...byId.keys()])].map((id) => byId.get(id)).filter(Boolean);
+}
+const engineById = (id) => engines().find((engine) => engine.id === id);
+const isEngineEnabled = (id) => !prefs.disabledEngines.includes(id);
+const enabledEngines = () => engines().filter(({ id }) => isEngineEnabled(id));
+function reconcileEngineChoices(settings, enabledIds) {
+  const fallback = enabledIds.includes("bing") ? "bing" : enabledIds[0];
+  if (!enabledIds.includes(settings.defaultEngine)) settings.defaultEngine = fallback;
+  if (!enabledIds.includes(settings.selectionEngine)) settings.selectionEngine = settings.defaultEngine;
+}
+const coloredBrands = new Set(["amazon", "baidu", "bilibili", "bing", "google", "reddit", "stackoverflow", "taobao", "youtube", "zhihu"]);
+const isColor = (value) => /^#[0-9a-f]{6}$/i.test(value || "");
+const isIconData = (value) => /^data:image\/(?:svg\+xml|png|jpeg|bmp|x-icon|vnd\.microsoft\.icon|webp);base64,[a-z0-9+/=]+$/i.test(value || "");
+function iconWithAccent(source, accent) {
+  if (!source?.startsWith("data:image/svg+xml;base64,")) return source;
+  try {
+    const bytes = Uint8Array.from(atob(source.split(",")[1]), (char) => char.charCodeAt(0));
+    const svg = new DOMParser().parseFromString(new TextDecoder().decode(bytes), "image/svg+xml").documentElement;
+    if (svg.localName !== "svg") return source;
+    svg.setAttribute("color", accent);
+    return `data:image/svg+xml,${encodeURIComponent(new XMLSerializer().serializeToString(svg))}`;
+  } catch {
+    return source;
+  }
+}
+const brand = (engine, useColor = prefs.colorIcons) => {
+  if (!engine) return "";
+  const accent = isColor(engine.accent) ? engine.accent : "#1f75db";
+  const monoImage = engine.monoImage || engine.image;
+  const baseMono = Object.hasOwn(brandSvgs, engine.id) ? `data:image/svg+xml;base64,${brandSvgs[engine.id]}` :
+    engine.id === "x" ? "../assets/icons/x.svg" : "";
+  const baseColor = coloredBrands.has(engine.id) ? `../assets/icons/color/${engine.id}.svg` : "";
+  const mono = monoImage || (engine.monoRemoved ? "" : baseMono);
+  const multi = engine.colorImage || (engine.colorRemoved ? "" : baseColor);
+  const image = (source, custom) => `<img class="brand-icon" alt="" draggable="false" src="${escapeHtml(custom ? iconWithAccent(source, accent) : source)}">`;
+  if (useColor && multi) return image(multi, engine.colorImage);
+  const color = isColor(engine.color) ? engine.color : "#1f75db";
+  if (mono) {
+    if (useColor || color === "#000000") return image(mono, monoImage);
+    return `<span class="brand-icon" aria-hidden="true" style="display:inline-block;background:${color};mask:url('${escapeHtml(mono)}') center/contain no-repeat"></span>`;
+  }
+  if (multi) return image(multi, engine.colorImage);
+  const swatch = useColor || color === "#000000" ? accent : color;
+  return `<span class="brand-icon custom-icon" aria-hidden="true" style="--swatch:${swatch}">${escapeHtml([...engine.name.trim()][0] || "S")}</span>`;
+};
+const btn = (label, action, { id = "", symbol = "", primary = false, disabled = false, hidden = false, value = "", danger = false, tool = false } = {}) =>
+  `<button type="button" class="${tool ? "tool" : "button"}${primary ? " accent" : ""}${danger ? " danger" : ""}" data-action="${action}" data-value="${escapeHtml(value)}"${id ? ` id="${id}"` : ""}${disabled ? " disabled" : ""}${hidden ? " hidden" : ""}${tool ? ` title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"` : ""}>${symbol ? icon(symbol) : ""}${tool ? "" : `<span>${escapeHtml(label)}</span>`}</button>`;
+const toggle = (label, key, value, disabled = false, { action = "toggle", id = `toggle-${key}`, title = "" } = {}) =>
+  `<button type="button" class="switch" role="switch" aria-label="${escapeHtml(label)}" aria-checked="${value}" data-action="${action}" data-value="${key}" id="${id}"${title ? ` title="${escapeHtml(title)}"` : ""}${disabled ? " disabled" : ""}></button>`;
+const sub = (text) => `<p class="subtle">${escapeHtml(text)}</p>`;
+const row = (label, detail, action, symbol = "", wrap = false) =>
+  `<div class="row${wrap ? " wrap" : ""}">${symbol ? icon(symbol) : ""}<div class="copy"><div class="label">${escapeHtml(label)}</div>${detail ? sub(detail) : ""}</div>${action}</div>`;
+const group = (title, children, className = "") => `<section><h2 class="section-title">${title}</h2><div class="group ${className}">${children}</div></section>`;
+const collection = (children, attributes = "") => `<div class="group collection" ${attributes}>${children}</div>`;
+const head = (title, actions = "") => `<header class="page-head"><div><h1 tabindex="-1" id="page-heading">${title}</h1></div>${actions}</header>`;
+const option = (value, label, current) => `<option value="${escapeHtml(value)}"${current === value ? " selected" : ""}>${escapeHtml(label)}</option>`;
+const shortcutLabels = { ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→", Delete: "Del", PageUp: "PgUp", PageDown: "PgDn", Escape: "Esc" };
+const keys = (text, pressed = false) => text
+  ? `<span class="keyset" role="img" aria-label="${escapeHtml(text)}">${text.split("+").map((key) => `<kbd${pressed ? ' class="key-pressed"' : ""}>${escapeHtml(shortcutLabels[key] || key)}</kbd>`).join('<span class="key-separator" aria-hidden="true">+</span>')}</span>`
+  : `<span class="subtle">未设置</span>`;
+const feedback = (key) => `<p class="subtle feedback" id="feedback-${key}" role="status">${escapeHtml(state.feedback.get(key) || "")}</p>`;
+const searchField = (id, label, value) =>
+  `<div class="search-field">${icon("search")}<input type="search" id="${id}" aria-label="${label}" placeholder="${label}" value="${escapeHtml(value)}"></div>`;
+
+function drawChrome() {
+  const expanded = $("#prototype").dataset.size === "large";
+  $("#titlebar").innerHTML = `<span class="appmark">${icon("search")}</span><span>易搜设置</span>${btn(expanded ? "还原窗口" : "展开窗口", "expand", { id: "expand", symbol: expanded ? "minimize" : "maximize", tool: true })}`;
+  nav.innerHTML = pages.filter(([id]) => id !== "ocr" || state.edition === "full").map(([id, label, symbol]) =>
+    `<button type="button" class="nav" data-action="navigate" data-value="${id}" aria-label="${label}" title="${label}"${id === state.page ? ' aria-current="page"' : ""}>${icon(symbol)}<span>${label}</span></button>`
+  ).join("");
+}
+function refresh(focus, top = content.scrollTop) {
+  finishEngineDrag(false);
+  content.innerHTML = `<div class="view">${views[state.page]()}</div>`;
+  content.scrollTop = top;
+  if (focus) $(focus)?.focus({ preventScroll: true });
+}
+function popupPlacement(trigger, height) {
+  const bounds = trigger.getBoundingClientRect();
+  const below = innerHeight - bounds.bottom - 12;
+  const above = bounds.top - 12;
+  const opensAbove = height > below && above > below;
+  return { bounds, opensAbove, maxHeight: Math.max(0, opensAbove ? above : below) };
+}
+function positionSelect(select) {
+  const height = Math.min(365, innerHeight * .6, select.options.length * 36 + 10);
+  const { bounds, opensAbove, maxHeight } = popupPlacement(select, height);
+  select.dataset.popupSide = opensAbove ? "above" : "below";
+  select.style.setProperty("--picker-height", `${Math.min(height, maxHeight)}px`);
+  select.style.setProperty("--picker-width", `${bounds.width}px`);
+  select.style.setProperty("--picker-left", `${bounds.left}px`);
+  select.style.setProperty("--picker-top", `${bounds.bottom + 4}px`);
+  select.style.setProperty("--picker-bottom", `${innerHeight - bounds.top + 4}px`);
+}
+if (CSS.supports("appearance: base-select") && CSS.supports("selector(::picker(select))")) {
+  const prepareSelect = (event) => {
+    if (event.target instanceof HTMLSelectElement) positionSelect(event.target);
+  };
+  content.addEventListener("pointerdown", prepareSelect, true);
+  content.addEventListener("keydown", prepareSelect, true);
+  content.addEventListener("click", prepareSelect, true);
+  const updateOpenSelect = () => {
+    const select = $("select:open", content);
+    if (select) positionSelect(select);
+  };
+  content.addEventListener("scroll", updateOpenSelect, { passive: true });
+  window.addEventListener("resize", updateOpenSelect);
+}
+function setFeedback(key, value) {
+  state.feedback.set(key, value);
+  const element = $(`#feedback-${key}`);
+  if (element) element.textContent = localizeText(value);
+}
+function changePage(page, focus = "#page-heading") {
+  closeMenu();
+  if (state.page !== page || state.editor) {
+    if (!state.editor) state.scroll.set(state.page, content.scrollTop);
+    state.editor = null;
+    state.recording = null;
+    state.page = page;
+    drawChrome();
+    refresh(focus, state.scroll.get(page) || 0);
+  }
+}
+function guardEditor(action) {
+  if (!state.editor?.dirty) return action();
+  openDialog("放弃未保存的修改？", sub("当前引擎表单中的修改将被丢弃。"), "放弃修改", action);
+}
+function showPage(page, focus) {
+  if (page === state.page && !state.editor) return;
+  guardEditor(() => changePage(page, focus));
+}
+function renderGeneral() {
+  return head("常规") + group("启动与后台",
+    row("登录 Windows 时启动", "登录后在系统托盘等待。", toggle("登录 Windows 时启动", "startup", prefs.startup), "power") +
+    row("手动启动时显示搜索框", "关闭后，手动启动时只驻留托盘。", toggle("手动启动时显示搜索框", "reveal", prefs.reveal), "search") +
+    row("关闭搜索框后驻留托盘", "关闭此项后，按 Esc 退出易搜。", toggle("关闭搜索框后驻留托盘", "tray", prefs.tray), "device-desktop")) +
+    group("界面语言", row("界面语言", "", `<div class="actions"><select id="language" aria-label="界面语言">${[
+      ["system", "跟随系统"], ["zh-CN", "简体中文"], ["en-US", "English"],
+    ].map(([value, label]) => option(value, label, state.language)).join("")}</select>${btn("应用", "apply-language", { id: "apply-language", disabled: state.language === prefs.language })}</div>`, "language", true)) + feedback("general");
+}
+function previewFont() {
+  const family = prefs.fontPreview || prefs.font;
+  return family === "YiSouLocalPreview" || fontFamilies.some(([name]) => name === family) ? family : defaultFont;
+}
+function fontFacesFor(family) {
+  return fontFamilies.find(([name]) => name === family)?.[2] ?? ["regular"];
+}
+function fontStyleCss(family, face, size) {
+  const [, weight, style] = fontStyles[face];
+  return `font-family:'${family}', 'Segoe UI', sans-serif;font-weight:${weight};font-style:${style};font-size:${size}px`;
+}
+function validFontSize(size) {
+  return Number.isInteger(size) && size >= minFontSize && size <= maxFontSize;
+}
+function appearanceTiles(current) {
+  const sample = [current, ...enabledEngines().filter(({ id }) => id !== current?.id).slice(0, 2)].filter(Boolean);
+  return sample.map((engine) => `<div class="sample-tile" title="${escapeHtml(engine.name)}">${brand(engine)}${prefs.names ? `<span>${escapeHtml(engine.name)}</span>` : ""}</div>`).join("");
+}
+function renderAppearance() {
+  const current = engineById(prefs.defaultEngine);
+  const isDefaultFont = !prefs.fontFile && prefs.font === defaultFont &&
+    prefs.fontStyle === "regular" && prefs.fontSize === defaultFontSize && prefs.fontScript === "zh-CN";
+  const fontDetail = [prefs.fontFile || prefs.font,
+    prefs.fontStyle === "regular" ? "" : localizeText(fontStyles[prefs.fontStyle][0]),
+    `${prefs.fontSize} DIP`].filter(Boolean).join(" · ");
+  return head("外观") +
+    `<section><h2 class="section-title">搜索框</h2>
+    <div class="search-preview" style="${fontStyleCss(previewFont(), prefs.fontStyle, prefs.fontSize)};--engine-size:${prefs.iconSize}px"><span>复杂中文 鬱鑿齒 · Search 123</span>${brand(current)}</div>
+    <div class="group">${row("当前字体", fontDetail,
+      `<div class="actions">${btn("选择系统字体", "choose-font", { id: "choose-font" })}${btn("打开字体文件", "font-file", { id: "font-file" })}${btn("恢复默认", "reset-font", { id: "reset-font", disabled: isDefaultFont })}</div>`, "typography", true) +
+      row("右侧图标大小", "", `<div class="number-field">
+        ${btn("减小图标", "step-icon-size", { id: "decrease-icon-size", symbol: "minus", tool: true, value: -1, disabled: prefs.iconSize === minIconSize })}
+        <span class="number-value"><input type="text" inputmode="numeric" id="engine-icon-size" value="${prefs.iconSize}" role="spinbutton" aria-label="右侧图标大小" aria-describedby="engine-icon-unit" aria-valuemin="${minIconSize}" aria-valuemax="${maxIconSize}" aria-valuenow="${prefs.iconSize}"><span class="subtle" id="engine-icon-unit">DIP</span></span>
+        ${btn("增大图标", "step-icon-size", { id: "increase-icon-size", symbol: "plus", tool: true, value: 1, disabled: prefs.iconSize === maxIconSize })}
+      </div>`, "maximize")}</div>${feedback("font")}</section>` +
+    group("搜索引擎菜单", `<div class="setting-card menu-preview"><a class="plain-link subtle" href="search.html">菜单预览</a><div class="sample-grid" data-names="${prefs.names}">${appearanceTiles(current)}</div></div>
+      <div class="group">${row("使用多色图标", "", toggle("使用多色图标", "colorIcons", prefs.colorIcons), "palette") +
+      row("显示名称", "", toggle("显示名称", "names", prefs.names), "typography")}</div>`, "appearance-menu");
+}
+function renderSlots() {
+  return `<div class="slots" aria-label="置顶快捷位">${Array.from({ length: 5 }, (_, index) => {
+    const id = prefs.pins[index];
+    const engine = isEngineEnabled(id) ? engineById(id) : undefined;
+    return `<div class="slot" title="${escapeHtml(engine?.name || "未分配")}">${keys(`Alt+${index + 1}`)}${engine ? `${brand(engine)}<span>${escapeHtml(engine.name)}</span>` : '<span class="subtle">空</span>'}</div>`;
+  }).join("")}</div>`;
+}
+function engineStates(id, enabled) {
+  const pin = prefs.pins.indexOf(id);
+  return (prefs.defaultEngine === id ? "<span>默认</span>" : "") +
+    (enabled && pin >= 0 ? `<span title="${pin < 5 ? `置顶，Alt+${pin + 1}` : "已置顶"}" aria-label="已置顶">${icon("pin")}</span>` : "");
+}
+const keepEngineEnabled = "至少保留一个已启用的搜索引擎。";
+function engineRows() {
+  const filter = state.engineFilter.trim().toLowerCase().replace(/^#/, "");
+  const matches = engines().filter(({ name, alias }) => !filter || [name, alias].some((value) => value.toLowerCase().includes(filter)));
+  if (!matches.length) return `<div class="setting-card empty">${icon("search")}<strong>没有符合条件的引擎</strong>${btn("清除筛选", "clear-engines")}</div>`;
+  const onlyEnabled = enabledEngines().length === 1;
+  return `<div class="row engine-line columns" aria-hidden="true"><span></span><span>引擎</span><span>别名</span><span>状态</span><span>启用</span><span></span></div>` + matches.map((engine) => {
+    const enabled = isEngineEnabled(engine.id);
+    const locked = enabled && onlyEnabled;
+    return `<div class="row engine-line" data-engine-id="${engine.id}" data-enabled="${enabled}">
+      <button type="button" class="tool engine-grip" title="${escapeHtml(localizeText(`拖动排序「${engine.name}」`))}" aria-label="${escapeHtml(`拖动排序「${engine.name}」`)}" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown">${icon("grip-vertical")}</button>
+      <div class="engine-name">${brand(engine)}<strong>${escapeHtml(engine.name)}</strong></div><span class="alias subtle">${engine.alias ? `#${escapeHtml(engine.alias)}` : "—"}</span><div class="states">${engineStates(engine.id, enabled)}</div>
+      ${toggle(`启用「${engine.name}」`, engine.id, enabled, locked, { action: "engine-enabled", id: `toggle-engine-${engine.id}`, title: locked ? keepEngineEnabled : "" })}
+      <button type="button" class="tool" id="menu-${engine.id}" data-action="engine-menu" data-value="${engine.id}" aria-expanded="false" aria-controls="engine-menu" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" aria-label="${escapeHtml(engine.name)}：更多操作" title="更多操作">${icon("dots")}</button></div>`;
+  }).join("");
+}
+function renderEngines() {
+  if (state.editor) return renderEditor();
+  return head("搜索引擎", btn("添加引擎", "add-engine", { id: "add-engine", primary: true, symbol: "plus" })) +
+    group("置顶快捷位", `<div class="inset">${renderSlots()}</div>`) +
+    `<section><h2 class="section-title">搜索引擎列表</h2><div class="toolbar">${searchField("engine-filter", "筛选名称或 #别名", state.engineFilter)}</div>${collection(engineRows(), 'id="engine-list"')}${feedback("engine")}</section>`;
+}
+function toggleEngine(id) {
+  const enabled = isEngineEnabled(id);
+  if (enabled && enabledEngines().length <= 1) return;
+  prefs.disabledEngines = enabled ? [...prefs.disabledEngines, id] : prefs.disabledEngines.filter((entry) => entry !== id);
+  const enabledIds = enabledEngines().map((engine) => engine.id);
+  reconcileEngineChoices(prefs, enabledIds);
+  for (const row of $$("[data-engine-id]", content)) {
+    const engineId = row.dataset.engineId;
+    const active = isEngineEnabled(engineId);
+    const control = $(".switch", row);
+    row.dataset.enabled = active;
+    control.setAttribute("aria-checked", active);
+    control.disabled = active && enabledIds.length === 1;
+    if (control.disabled) control.title = localizeText(keepEngineEnabled);
+    else control.removeAttribute("title");
+    const badge = $(".states", row);
+    const markup = engineStates(engineId, active);
+    if (badge.innerHTML !== markup) badge.innerHTML = markup;
+  }
+  $(".slots", content).outerHTML = renderSlots();
+}
+function reorderEngine(row, target, after) {
+  const rows = $$("[data-engine-id]", row.parentElement);
+  const first = rows.map((item) => item.getBoundingClientRect());
+  const focused = document.activeElement;
+  if (after) target.after(row);
+  else target.before(row);
+  storeEngineOrder(rows, row.parentElement);
+  rows.forEach((item, index) => animateEngineRow(item, first[index], 200));
+  focused.focus({ preventScroll: true });
+  row.scrollIntoView({ block: "nearest" });
+}
+function storeEngineOrder(rows, list) {
+  const visibleIds = new Set(rows.map((item) => item.dataset.engineId));
+  const reordered = $$("[data-engine-id]", list).map((item) => item.dataset.engineId);
+  let index = 0;
+  prefs.engineOrder = engines().map(({ id }) => visibleIds.has(id) ? reordered[index++] : id);
+}
+const engineAnimations = new WeakMap();
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+function animateEngineRow(row, first, duration, lifted = false) {
+  engineAnimations.get(row)?.cancel();
+  if (reducedMotion.matches) return;
+  const last = row.getBoundingClientRect();
+  const x = first.left + first.width / 2 - last.left - last.width / 2;
+  const y = first.top + first.height / 2 - last.top - last.height / 2;
+  if (!lifted && Math.abs(y) < 1) return;
+  engineAnimations.set(row, row.animate(
+    [{ transform: `translate(${x}px, ${y}px) scale(${lifted ? 1.02 : 1})` }, { transform: "none" }],
+    { duration, easing: "cubic-bezier(.2,.75,.25,1)" },
+  ));
+}
+function startEngineDrag(event) {
+  const grip = event.target.closest(".engine-grip");
+  if (!grip || event.button !== 0 || state.engineDrag) return;
+  event.preventDefault();
+  closeMenu();
+  const row = grip.closest("[data-engine-id]");
+  const list = row.parentElement;
+  const bounds = row.getBoundingClientRect();
+  const floating = row.cloneNode(true);
+  delete floating.dataset.engineId;
+  floating.classList.add("engine-drag-card");
+  floating.querySelectorAll("[id]").forEach((element) => element.removeAttribute("id"));
+  floating.inert = true;
+  Object.assign(floating.style, { left: `${bounds.left}px`, top: `${bounds.top}px`, width: `${bounds.width}px`, height: `${bounds.height}px` });
+  const gap = document.createElement("div");
+  gap.className = "engine-sort-placeholder";
+  gap.style.height = `${bounds.height}px`;
+  gap.innerHTML = `${icon("layout-board")}<span>拖放到此处</span>`;
+  gap.setAttribute("aria-hidden", "true");
+  const rows = $$("[data-engine-id]", list);
+  state.engineDrag = {
+    row, list, floating, gap, rows, grip, pointerId: event.pointerId,
+    startX: event.clientX, startY: event.clientY, x: event.clientX, y: event.clientY, frame: 0,
+  };
+  row.before(gap);
+  row.hidden = true;
+  document.body.append(floating);
+  document.body.classList.add("engine-sort-active");
+  content.setPointerCapture(event.pointerId);
+}
+function positionEngineDrag(drag) {
+  const { x, y, startX, startY, floating, gap, rows, row, list } = drag;
+  floating.style.translate = `${x - startX}px ${y - startY}px`;
+  const candidates = rows.filter((item) => item !== row);
+  const top = list.getBoundingClientRect().top;
+  const next = candidates.find((item) => y < top + item.offsetTop + item.offsetHeight / 2) || null;
+  const gapNext = gap.nextElementSibling === row ? row.nextElementSibling : gap.nextElementSibling;
+  if (next === gapNext) return;
+  const first = candidates.map((item) => item.getBoundingClientRect());
+  list.insertBefore(gap, next);
+  candidates.forEach((item, index) => animateEngineRow(item, first[index], 240));
+}
+function scrollWhileDragging(drag) {
+  const bounds = content.getBoundingClientRect();
+  const edge = 48;
+  const top = bounds.top + edge;
+  const bottom = bounds.bottom - edge;
+  const distance = drag.y < top ? drag.y - top : Math.max(0, drag.y - bottom);
+  const previous = content.scrollTop;
+  content.scrollTop += Math.sign(distance) * Math.min(15, Math.ceil(Math.abs(distance) / 5));
+  drag.frame = 0;
+  if (content.scrollTop !== previous) {
+    positionEngineDrag(drag);
+    drag.frame = requestAnimationFrame(() => scrollWhileDragging(drag));
+  }
+}
+function finishEngineDrag(commit, restoreFocus = false) {
+  const drag = state.engineDrag;
+  if (!drag) return;
+  state.engineDrag = null;
+  const { row, grip, list, gap, floating, rows, pointerId, frame } = drag;
+  cancelAnimationFrame(frame);
+  const first = floating.getBoundingClientRect();
+  if (commit) list.insertBefore(row, gap);
+  gap.remove();
+  floating.remove();
+  row.hidden = false;
+  document.body.classList.remove("engine-sort-active");
+  if (content.hasPointerCapture(pointerId)) content.releasePointerCapture(pointerId);
+  if (commit) {
+    storeEngineOrder(rows, list);
+    animateEngineRow(row, first, 200, true);
+  }
+  if (restoreFocus) grip.focus({ preventScroll: true });
+}
+content.addEventListener("pointerdown", startEngineDrag);
+content.addEventListener("pointermove", (event) => {
+  const drag = state.engineDrag;
+  if (!drag || event.pointerId !== drag.pointerId) return;
+  drag.x = event.clientX;
+  drag.y = event.clientY;
+  positionEngineDrag(drag);
+  if (!drag.frame) drag.frame = requestAnimationFrame(() => scrollWhileDragging(drag));
+});
+content.addEventListener("pointerup", (event) => {
+  if (state.engineDrag?.pointerId === event.pointerId) finishEngineDrag(true, true);
+});
+for (const type of ["pointercancel", "lostpointercapture"]) {
+  content.addEventListener(type, (event) => {
+    if (state.engineDrag?.pointerId === event.pointerId) finishEngineDrag(false, true);
+  });
+}
+window.addEventListener("blur", () => finishEngineDrag(false));
+function renderEditor() {
+  const draft = state.editor;
+  const original = builtIns.find((engine) => engine.id === draft.id);
+  const draftIconRow = (mode, label) => {
+    const removed = draft[`${mode}Removed`];
+    const canClear = Boolean(draft[`${mode}Image`] || (mode === "mono" ? draft.image || original : coloredBrands.has(draft.id)));
+    return `<div class="row wrap engine-icon-row">
+      <span class="inline" id="engine-${mode}-preview">${brand(draft, mode === "color")}</span><div class="copy"><div class="label">${label}</div></div>
+      <div class="actions">${btn("选择文件…", "icon-file", { id: `icon-file-${mode}`, value: mode })}${btn("清除", "remove-icon", { value: mode, id: `remove-icon-${mode}`, disabled: removed || !canClear })}</div>
+    </div>`;
+  };
+  return head(draft.id ? "编辑搜索引擎" : "添加搜索引擎") +
+    `<form class="engine-form" id="engine-form" novalidate><div class="setting-card engine-card">
+      <div class="inset stack"><div class="field-grid engine-fields">
+        <div class="field"><label for="engine-name">名称</label><input id="engine-name" data-draft="name" maxlength="64" value="${escapeHtml(draft.name)}" aria-describedby="error-engine-name"><span class="error" id="error-engine-name"></span></div>
+        <div class="field"><label for="engine-alias">别名（可选）</label><input id="engine-alias" data-draft="alias" maxlength="32" placeholder="例如 wiki" value="${escapeHtml(draft.alias)}" aria-describedby="error-engine-alias"><span class="error" id="error-engine-alias"></span></div>
+      </div>
+      <div class="field"><label for="engine-url">搜索网址</label><input id="engine-url" data-draft="url" placeholder="https://example.com/search?q=%s" value="${escapeHtml(draft.url)}" aria-describedby="url-help error-engine-url"><span class="subtle" id="url-help">用 %s 表示查询词。</span><span class="error" id="error-engine-url"></span></div>
+      </div>
+      ${draftIconRow("mono", "单色图标")}
+      ${draftIconRow("color", "多色图标")}
+      <div class="row wrap"><div class="copy">单色配色</div><div class="actions">
+        <label class="button engine-color-label"><input id="engine-color" data-draft="color" type="color" value="${draft.color}" aria-label="单色配色"><span>选择颜色…</span></label>
+        ${btn("恢复默认", "reset-engine-color", { id: "reset-engine-color", disabled: draft.color === "#000000" })}</div></div>
+      <div class="row wrap"><div class="copy inline engine-accent-controls">
+        <label class="button engine-color-label"><input id="engine-accent" data-draft="accent" type="color" value="${draft.accent || "#1f75db"}" aria-label="选择强调色"><span>选择强调色</span></label>
+        ${btn("关于强调色", "accent-help", { id: "engine-accent-help", symbol: "help-circle", tool: true })}
+      </div>
+        ${original ? btn("恢复内置配置", "reset-engine", { id: "reset-engine" }) : ""}</div>
+      </div>
+      ${feedback("icon")}
+      <div class="form-actions">${btn("测试搜索", "test-engine", { symbol: "external-link" })}<div class="actions">${btn("取消", "cancel-engine")}<button class="button accent" type="submit">保存</button></div></div>
+    </form>`;
+}
+function shortcutBlock(key, title, detail) {
+  return `<div class="row wrap" data-shortcut="${key}">${icon("keyboard")}
+    <div class="copy"><div class="label" id="shortcut-title-${key}">${escapeHtml(title)}</div>${detail ? sub(detail) : ""}
+      <div class="shortcut-message" id="shortcut-message-${key}"><span role="status"></span></div></div>
+    <div class="shortcut-control"><button type="button" class="shortcut-recorder" id="record-${key}" data-action="start-record" data-value="${key}" aria-labelledby="shortcut-title-${key}" aria-describedby="shortcut-message-${key} shortcut-value-${key}" title="录制快捷键">
+      <span class="shortcut-dot" aria-hidden="true" hidden></span><span class="shortcut-value" id="shortcut-value-${key}">${keys(prefs[key])}</span></button>
+      <span data-shortcut-reset>${btn("恢复默认", "reset-key", { value: key, tool: true, symbol: "history", hidden: prefs[key] === shortcutDefaults[key] })}</span></div></div>`;
+}
+function renderShortcuts() {
+  return head("快捷键") +
+    group("全局快捷键", shortcutBlock("main", "唤出易搜", "有选区时直接搜索，其余时候打开搜索框。") +
+      `<div class="setting-card">${shortcutBlock("selection", "划词搜索", "使用指定的引擎和触发动作。")}
+      <div class="inset field-grid"><div class="field"><label for="selection-engine">划词搜索引擎</label><select id="selection-engine">${enabledEngines().map((engine) => option(engine.id, engine.name, prefs.selectionEngine)).join("")}</select></div>
+        <div class="field"><label for="selection-action">触发动作</label><select id="selection-action">${option("direct", "直接搜索", prefs.selectionAction)}${option("preview", "打开搜索框", prefs.selectionAction)}</select></div></div></div>` +
+      shortcutBlock("clipboard", "剪贴板搜索", "使用默认引擎搜索剪贴板里的文字。") +
+      (state.edition === "full" ? row("OCR 快捷键", "", `<div class="actions">${keys(prefs.ocrKey)}${btn("前往设置", "goto-ocr", { symbol: "scan" })}</div>`, "scan", true) : "")) +
+    group("双击 Alt 排除的应用", `<div class="inset stack"><div class="inline" id="exclusion-items">${exclusionChips()}</div><div class="inline"><input class="wide" id="excluded-app" aria-label="添加排除应用" placeholder="例如 mstsc.exe">${btn("添加", "add-exclusion")}${btn("应用", "save-exclusions", { id: "save-exclusions", disabled: sameExclusions() })}</div><p class="error" id="exclusions-error" role="status"></p></div>`) +
+    feedback("keys");
+}
+function exclusionChips() {
+  return state.exclusion.length ? state.exclusion.map((app, index) => `<span class="chip">${escapeHtml(app)}${btn(`移除 ${app}`, "remove-exclusion", { value: index, tool: true, symbol: "x" })}</span>`).join("") : sub("没有排除应用");
+}
+function sameExclusions() {
+  return JSON.stringify(prefs.excluded) === JSON.stringify(state.exclusion);
+}
+function renderBrowser() {
+  const rows = [...browsers, { id: "other", name: "选择其他浏览器…", path: "" }].map(({ id, name, path }) =>
+    `<label class="row radio-row"><input type="radio" name="browser" id="browser-${id}" value="${id}"${state.browser === id ? " checked" : ""}>${icon(id === "system" ? "device-desktop" : "browser")}<span class="copy"><span class="label">${name}</span>${path ? `<span class="subtle path" style="display:block">${escapeHtml(path)}</span>` : ""}</span></label>`).join("");
+  return head("浏览器") + `<section><h2 class="section-title">打开搜索结果</h2>${collection(rows +
+    (state.browser === "other" ? `<div class="inset stack"><label class="label" for="browser-path">浏览器程序</label><div class="inline"><input class="wide path" id="browser-path" value="${escapeHtml(state.browserPath)}" placeholder="C:\\…\\browser.exe">${btn("浏览…", "browse-browser", { id: "browse-browser", symbol: "folder" })}</div><p class="error" role="alert" id="browser-error"></p></div>` : "") +
+    `<div class="group-footer">${btn("应用", "save-browser", { id: "save-browser", primary: true, disabled: !browserChanged() })}</div>`)}${feedback("browser")}</section>`;
+}
+function browserChanged() {
+  return prefs.browser !== state.browser || (state.browser === "other" && prefs.browserPath !== state.browserPath.trim());
+}
+function historyMatches() {
+  const query = state.historyQuery.trim().toLowerCase();
+  const source = state.historySource.trim().toLowerCase();
+  return state.historyRows.filter((record) => record.query.toLowerCase().includes(query) && record.source.toLowerCase().includes(source));
+}
+const historyTime = new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+function historyResults() {
+  const matches = historyMatches();
+  if (!matches.length) return `<div class="setting-card empty">${icon("history")}<strong>${state.historyRows.length ? "没有符合筛选条件的记录" : "暂无搜索记录"}</strong>${state.historyRows.length ? btn("清除筛选", "clear-history") : ""}</div>`;
+  const count = Math.ceil(matches.length / 24);
+  state.historyPage = Math.max(0, Math.min(state.historyPage, count - 1));
+  const rows = matches.slice(state.historyPage * 24, (state.historyPage + 1) * 24);
+  return collection(rows.map((record) => {
+    const engine = engineById(record.engine) || engineById(prefs.defaultEngine);
+    return `<div class="row history-row" data-history-row="${record.id}" tabindex="0" id="history-${record.id}">${brand(engine)}<div class="copy"><strong>${escapeHtml(record.query)}</strong>${sub(`${engine?.name || ""} · ${record.source} · ${historyTime.format(record.time)}`)}</div><div class="actions">
+      <button type="button" class="button" data-action="repeat-search" data-value="${record.id}" aria-label="再次搜索" title="再次搜索">${icon("search")}<span class="repeat-label">再次搜索</span></button>
+      ${btn("删除记录", "delete-history", { tool: true, symbol: "trash", value: record.id })}</div></div>`;
+  }).join("")) + `<div class="pagination"><span class="subtle">${matches.length} 条 · 第 ${state.historyPage + 1} / ${count} 页</span><div class="actions">${btn("上一页", "history-page", { id: "history-prev", value: -1, disabled: state.historyPage === 0 })}${btn("下一页", "history-page", { id: "history-next", value: 1, disabled: state.historyPage + 1 === count })}</div></div>`;
+}
+function renderHistory() {
+  return head("搜索历史") +
+    group("本机搜索记录", row("记录搜索历史", "关闭后仍可查看已有记录。", toggle("记录搜索历史", "history", prefs.history), "history")) +
+    `<section class="stack"><div class="field-grid"><div class="field"><label for="history-query">搜索内容</label><input type="search" id="history-query" value="${escapeHtml(state.historyQuery)}"></div><div class="field"><label for="history-source">来源应用</label><input type="search" id="history-source" value="${escapeHtml(state.historySource)}"></div></div><div id="history-results" aria-live="polite">${historyResults()}</div></section>${feedback("history")}`;
+}
+function ocrStatus() {
+  switch (state.ocrStatus) {
+    case "checking": return `<span class="status-line">${`<span class="spin">${icon("loader-2")}</span>`}正在检查模型…</span>`;
+    case "ready": return `<span class="status-line ok">${icon("circle-check")}模型可用</span>`;
+    case "checksum": return `<span class="status-line error">${icon("x")}识别模型校验失败 · ${models[1][2]}</span>`;
+    case "missing": return `<span class="status-line error">${icon("x")}缺少文件 · ${models[2][2]}</span>`;
+    case "unknown": return `<span class="status-line error">${icon("x")}此原型目录未配置。请从「浏览」中选择样例。</span>`;
+    default: return `<span class="status-line subtle">${icon("folder")}待配置</span>`;
+  }
+}
+function ocrStatusWithActivePath() {
+  const active = prefs.ocrEnabled && prefs.ocrPath !== state.ocrPath.trim();
+  return ocrStatus() + (active ? sub(`当前使用 ${prefs.ocrPath}`) : "");
+}
+function updateOcrControls() {
+  const checking = state.ocrStatus === "checking";
+  $("#toggle-ocrEnabled").setAttribute("aria-checked", prefs.ocrEnabled);
+  for (const control of $$("#toggle-ocrEnabled, #ocr-path, #browse-ocr, #apply-ocr")) {
+    control.disabled = checking;
+  }
+  $("#ocr-status").innerHTML = ocrStatusWithActivePath();
+}
+function renderOcr() {
+  const checking = state.ocrStatus === "checking";
+  return head("OCR 搜索") +
+    group("截图文字搜索", row("启用 OCR 搜索", "启用前需要配置并验证本地 OCR 模型。", toggle("启用 OCR 搜索", "ocrEnabled", prefs.ocrEnabled, checking), "scan")) +
+    group("本地模型", `<div class="inset stack"><div class="field"><label for="ocr-path">模型文件夹</label><div class="inline"><input class="wide path" id="ocr-path" value="${escapeHtml(state.ocrPath)}" placeholder="D:\\OCR\\PP-OCRv6-tiny"${checking ? " disabled" : ""}>${btn("浏览…", "browse-ocr", { id: "browse-ocr", symbol: "folder", disabled: checking })}${btn("应用", "apply-ocr", { id: "apply-ocr", disabled: checking })}</div><div id="ocr-status" aria-live="polite">${ocrStatusWithActivePath()}</div></div></div>` +
+      `<div class="inset stack"><div><div class="label">ModelScope · PP-OCRv6 tiny</div>${sub("将检测模型、识别模型和字典放在同一个目录。")}</div><div class="download-list">${models.map(([label, path]) => `<a class="plain-link" href="${modelBase}${path}" target="_blank" rel="noopener noreferrer">${label}${icon("external-link")}</a>`).join("")}</div></div>`) +
+    group("快捷键", shortcutBlock("ocrKey", "OCR 快捷键", "")) + feedback("ocr");
+}
+function renderConfig() {
+  return head("配置文件") +
+    group("当前配置", `<div class="inset field"><label for="config-path">配置文件路径</label><div class="inline"><input readonly class="wide path" id="config-path" value="${escapeHtml(prefs.configPath)}">${btn("更换位置…", "choose-config", { id: "choose-config", symbol: "folder" })}</div>${state.nextConfig ? sub(`下次启动使用 ${state.nextConfig}`) : ""}</div>`) +
+    group("导入与导出", row("完整配置", "导入将替换当前配置。", `<div class="actions">${btn("导入配置…", "import-config", { id: "import-config", symbol: "folder" })}${btn("导出配置…", "export-config", { symbol: "download" })}</div>`, "file-typography", true) +
+      row("搜索引擎包", "导入会合并自定义引擎与置顶顺序。", `<div class="actions">${btn("导入引擎…", "import-engines", { id: "import-engines", symbol: "folder" })}${btn("导出引擎…", "export-engines", { symbol: "download" })}</div>`, "search", true)) +
+    feedback("config");
+}
+const views = {
+  general: renderGeneral, appearance: renderAppearance, engines: renderEngines,
+  shortcuts: renderShortcuts, browser: renderBrowser, history: renderHistory, ocr: renderOcr, config: renderConfig,
+};
+function openDialog(title, body, actionLabel, action, { focus = "", cancel = "取消", className = "" } = {}) {
+  const origin = document.activeElement;
+  dialog.className = className;
+  dialog.innerHTML = `<div class="dialog-body"><h2 id="dialog-title">${escapeHtml(title)}</h2>${body}</div><div class="dialog-footer">
+    <button type="button" class="button" id="dialog-cancel">${escapeHtml(cancel)}</button>${action ? `<button type="button" class="button accent" id="dialog-action">${escapeHtml(actionLabel)}</button>` : ""}</div>`;
+  dialog.setAttribute("aria-labelledby", "dialog-title");
+  if (uiLanguage() === "en") localize(dialog);
+  $("#dialog-cancel").onclick = () => dialog.close();
+  if (action) $("#dialog-action").onclick = () => {
+    const commit = action();
+    if (commit === false) return;
+    dialog.close();
+    if (typeof commit === "function") commit();
+  };
+  dialog.showModal();
+  $(focus || "#dialog-cancel").focus();
+  dialog.addEventListener("close", () => {
+    if (origin?.isConnected && (document.activeElement === document.body || dialog.contains(document.activeElement))) {
+      origin.focus({ preventScroll: true });
+    }
+  }, { once: true });
+}
+function updateSegment(selector, property, value) {
+  $$(selector).forEach((button) => button.setAttribute("aria-pressed", button.dataset[property] === value));
+}
+function setSize(size) {
+  $("#prototype").dataset.size = size;
+  updateSegment("[data-size-choice]", "sizeChoice", size);
+  const button = $("#expand");
+  const label = size === "large" ? "还原窗口" : "展开窗口";
+  button.title = localizeText(label);
+  button.setAttribute("aria-label", localizeText(label));
+  sourceAttributes.delete(button);
+  button.innerHTML = icon(size === "large" ? "minimize" : "maximize");
+}
+function setEdition(edition) {
+  if (state.edition === edition) return;
+  cancelRecording();
+  state.edition = edition;
+  updateSegment("[data-edition]", "edition", edition);
+  if (edition === "lite" && state.page === "ocr") {
+    changePage("shortcuts");
+  } else {
+    drawChrome();
+    if (state.page === "shortcuts") refresh();
+  }
+}
+function updateSwitch(button, key) {
+  prefs[key] = !prefs[key];
+  button.setAttribute("aria-checked", prefs[key]);
+}
+function setFont(family, { file = "", preview = "", face = "regular", size = defaultFontSize, script = "zh-CN" } = {}) {
+  Object.assign(prefs, { font: family, fontFile: file, fontPreview: preview, fontStyle: face, fontSize: size, fontScript: script });
+  state.feedback.delete("font");
+}
+function fontOption(group, value, label, selected, style = "") {
+  return `<label class="font-option"><input type="radio" name="${group}" value="${escapeHtml(value)}"${value === selected ? " checked" : ""}><span style="${style}">${escapeHtml(label)}</span></label>`;
+}
+function chooseFont() {
+  let family = fontFamilies.some(([name]) => name === prefs.font) ? prefs.font : defaultFont;
+  let face = fontFacesFor(family).includes(prefs.fontStyle) ? prefs.fontStyle : "regular";
+  let script = prefs.fontScript;
+  openDialog("选择系统字体", `
+    <div class="font-columns">
+      <div class="font-field font-family-field">
+        <div class="font-field-title" id="font-family-title">字体</div>
+        <input type="search" id="font-filter" placeholder="搜索字体" aria-label="搜索字体">
+        <div class="font-options" id="font-families" role="radiogroup" aria-labelledby="font-family-title"></div>
+      </div>
+      <div class="font-field">
+        <div class="font-field-title" id="font-style-title">字形</div>
+        <div class="font-current" id="font-style-value" aria-hidden="true"></div>
+        <div class="font-options" id="font-styles" role="radiogroup" aria-labelledby="font-style-title"></div>
+      </div>
+      <div class="font-field">
+        <label class="font-field-title" id="font-size-title" for="font-size">大小（DIP）</label>
+        <input type="number" id="font-size" min="${minFontSize}" max="${maxFontSize}" step="1" value="${prefs.fontSize}" required>
+        <div class="font-options" id="font-sizes" role="radiogroup" aria-labelledby="font-size-title">${fontSizes.map((size) =>
+          fontOption("font-size-preset", size, size, prefs.fontSize)).join("")}</div>
+      </div>
+    </div>
+    <div class="field"><div class="font-field-title" id="font-script-title">脚本</div>
+      <div class="font-script-options" role="radiogroup" aria-labelledby="font-script-title">${Object.entries(fontScripts).map(([value, [label]]) =>
+        fontOption("font-script", value, label, script)).join("")}</div>
+    </div>
+    <div class="field"><div class="font-field-title" id="font-sample-title">示例</div>
+      <div class="font-sample" role="group" aria-labelledby="font-sample-title"><span id="dialog-font-preview"></span></div>
+    </div>
+    <a class="font-more plain-link" id="font-more" href="${windowsFontSettings}" title="打开 Windows 设置中的「个性化 → 字体」">显示更多字体</a>`,
+  "应用", () => {
+    if (!sizeInput.validity.valid) return false;
+    setFont(family, { face, size: sizeInput.valueAsNumber, script });
+    return () => refresh("#choose-font");
+  }, { focus: "#font-filter", className: "font-dialog" });
+  const filter = $("#font-filter");
+  const families = $("#font-families");
+  const styles = $("#font-styles");
+  const sizeInput = $("#font-size");
+  const preview = $("#dialog-font-preview");
+  function renderFamilies() {
+    const query = filter.value.trim().toLowerCase();
+    const visible = fontFamilies.filter(([name, label]) => `${name} ${label}`.toLowerCase().includes(query));
+    families.innerHTML = visible.map(([name, label]) =>
+      fontOption("font-family", name, uiLanguage() === "en" ? name : label, family, fontStyleCss(name, "regular", 14))).join("") ||
+      '<div class="font-empty subtle" role="status">没有匹配的字体。</div>';
+    families.scrollTop = 0;
+  }
+  function renderStyles() {
+    styles.innerHTML = fontFacesFor(family).map((value) =>
+      fontOption("font-style", value, fontStyles[value][0], face, fontStyleCss(family, value, 14))).join("");
+  }
+  function updatePreview() {
+    const valid = sizeInput.validity.valid;
+    $("#dialog-action").disabled = !valid;
+    sizeInput.setAttribute("aria-invalid", String(!valid));
+    $("#font-style-value").textContent = fontStyles[face][0];
+    preview.lang = script;
+    preview.textContent = fontScripts[script][1];
+    preview.style.cssText = fontStyleCss(family, face, valid ? sizeInput.valueAsNumber : prefs.fontSize);
+  }
+  filter.oninput = renderFamilies;
+  filter.onkeydown = (event) => {
+    if (event.isComposing || event.key !== "ArrowDown") return;
+    event.preventDefault();
+    ($("input:checked", families) || $("input", families))?.focus();
+  };
+  families.onchange = (event) => {
+    family = event.target.value;
+    if (!fontFacesFor(family).includes(face)) face = "regular";
+    renderStyles();
+    updatePreview();
+  };
+  styles.onchange = (event) => {
+    face = event.target.value;
+    updatePreview();
+  };
+  sizeInput.oninput = () => {
+    $$('input[name="font-size-preset"]', dialog).forEach((input) => {
+      input.checked = Number(input.value) === sizeInput.valueAsNumber;
+    });
+    updatePreview();
+  };
+  $("#font-sizes").onchange = (event) => {
+    sizeInput.value = event.target.value;
+    updatePreview();
+  };
+  $(".font-script-options", dialog).onchange = (event) => {
+    script = event.target.value;
+    updatePreview();
+  };
+  renderFamilies();
+  renderStyles();
+  updatePreview();
+  for (const list of [families, $("#font-sizes")]) {
+    const selected = $("input:checked", list)?.closest("label");
+    if (selected) {
+      const overflow = selected.getBoundingClientRect().bottom - list.getBoundingClientRect().bottom + 4;
+      list.scrollTop = Math.max(0, overflow);
+    }
+  }
+}
+function pickFile(accept, callback) {
+  fileInput.value = "";
+  fileInput.accept = accept;
+  fileInput.onchange = () => {
+    const file = fileInput.files[0];
+    if (file) callback(file);
+  };
+  fileInput.click();
+}
+let loadedFont;
+async function loadFont(file) {
+  if (!/\.(ttf|otf|ttc|otc)$/i.test(file.name)) {
+    setFeedback("font", "请选择 Windows 字体文件。");
+    return;
+  }
+  try {
+    const font = await new FontFace("YiSouLocalPreview", await file.arrayBuffer()).load();
+    if (loadedFont) document.fonts.delete(loadedFont);
+    document.fonts.add(font);
+    loadedFont = font;
+    setFont(file.name, { file: file.name, preview: "YiSouLocalPreview", size: prefs.fontSize, script: prefs.fontScript });
+    if (state.page === "appearance") refresh("#font-file");
+  } catch {
+    setFeedback("font", "字体加载失败，已保留上一次可用字体。");
+  }
+}
+function closeMenu(restore = false) {
+  if (!state.engineMenu) return;
+  const anchor = state.engineMenu;
+  state.engineMenu = null;
+  menu.inert = true;
+  menu.hidden = true;
+  anchor.setAttribute("aria-expanded", "false");
+  if (restore) anchor.focus({ preventScroll: true });
+}
+function openMenu(anchor, id) {
+  if (state.engineMenu === anchor) return closeMenu(true);
+  closeMenu();
+  const engine = engineById(id);
+  if (!engine) return;
+  const custom = prefs.custom.some((entry) => entry.id === id);
+  const enabled = isEngineEnabled(id);
+  const pinned = prefs.pins.includes(id);
+  menu.innerHTML = [
+    btn("设为默认", "default-engine", { value: id, disabled: !enabled || prefs.defaultEngine === id, symbol: "star" }),
+    btn(pinned ? "取消置顶" : "置顶", "pin-engine", { value: id, disabled: !enabled && !pinned, symbol: "pin" }),
+    '<hr class="menu-separator">',
+    btn("编辑", "edit-engine", { value: id, symbol: "pencil" }),
+    ...(custom ? [btn("删除", "delete-engine", { value: id, symbol: "trash", danger: true, disabled: enabled && enabledEngines().length === 1 })] : []),
+  ].join("");
+  state.engineMenu = anchor;
+  anchor.setAttribute("aria-expanded", "true");
+  menu.inert = false;
+  menu.hidden = false;
+  menu.style.maxHeight = "";
+  const { offsetWidth: width, offsetHeight: height } = menu;
+  const { bounds, opensAbove, maxHeight } = popupPlacement(anchor, height);
+  menu.dataset.popupSide = opensAbove ? "above" : "below";
+  menu.style.maxHeight = `${maxHeight}px`;
+  menu.style.left = `${Math.max(8, Math.min(bounds.right - width, innerWidth - width - 8))}px`;
+  menu.style.top = `${opensAbove ? bounds.top - 4 - menu.offsetHeight : bounds.bottom + 4}px`;
+  $("button:not(:disabled)", menu)?.focus({ preventScroll: true });
+}
+function beginEditor(id) {
+  const engine = engineById(id);
+  closeMenu(true);
+  state.scroll.set("engines", content.scrollTop);
+  state.feedback.delete("icon");
+  state.editor = engine ? { ...engine, dirty: false } : { name: "", alias: "", url: "", color: "#000000", accent: "#1f75db", dirty: false };
+  refresh("#engine-name", 0);
+}
+function exitEditor(focus, reveal = false) {
+  state.editor = null;
+  refresh(focus, state.scroll.get("engines") || 0);
+  const target = $(focus);
+  if (!target) $("#engine-filter")?.focus({ preventScroll: true });
+  else if (reveal) target.scrollIntoView({ block: "nearest" });
+}
+function engineFieldError(field, message) {
+  const input = $(`#engine-${field}`);
+  input.setAttribute("aria-invalid", Boolean(message));
+  $(`#error-engine-${field}`).textContent = message;
+}
+function searchTemplate(url) {
+  try {
+    const parsed = new URL(url);
+    return /^https?:\/\//i.test(url) && /^https?:$/.test(parsed.protocol) &&
+      !parsed.username && !parsed.password && !/[\s\\]/u.test(url) &&
+      [parsed.pathname, parsed.search, parsed.hash].some((part) => part.includes("%s"));
+  } catch {
+    return false;
+  }
+}
+function engineDraft(testOnly) {
+  const draft = state.editor;
+  const name = draft.name.trim();
+  const alias = draft.alias.trim().replace(/^#/, "").toLowerCase();
+  const url = draft.url.trim();
+  const errors = {
+    name: testOnly || name ? "" : "请输入引擎名称。",
+    alias: testOnly || !alias ? "" : !/^[a-z0-9_-]+$/i.test(alias) ? "别名仅支持英文字母、数字、连字符和下划线。" :
+      engines().some((engine) => engine.id !== draft.id && engine.alias === alias) ? "已存在相同别名。" : "",
+    url: searchTemplate(url) ? "" : "请输入包含 %s 的有效 HTTP 或 HTTPS 搜索网址。",
+  };
+  Object.entries(errors).forEach(([field, message]) => engineFieldError(field, message));
+  const invalid = Object.keys(errors).find((field) => errors[field]);
+  if (invalid) {
+    $(`#engine-${invalid}`).focus();
+    return;
+  }
+  if (testOnly) {
+    const result = url.replaceAll("%s", encodeURIComponent("易搜"));
+    openDialog("测试搜索", `<p class="path">${escapeHtml(result)}</p>`, "", null, { cancel: "关闭" });
+    return;
+  }
+  const id = draft.id || `custom-${Date.now()}-${prefs.custom.length}`;
+  const { dirty, ...values } = draft;
+  const result = { ...values, id, name, alias, url };
+  if (builtIns.some((engine) => engine.id === id)) prefs.builtInOverrides[id] = result;
+  else if (draft.id) prefs.custom[prefs.custom.findIndex((engine) => engine.id === id)] = result;
+  else prefs.custom.push(result);
+  setFeedback("engine", `已保存 ${name}。`);
+  exitEditor(`#menu-${id}`, true);
+}
+function updateEngineIconPreviews() {
+  $("#engine-mono-preview").innerHTML = brand(state.editor, false);
+  $("#engine-color-preview").innerHTML = brand(state.editor, true);
+}
+function loadEngineIcon(file, mode) {
+  if (!/\.(svg|png|jpe?g|bmp|ico|webp)$/i.test(file.name) || file.size > 8 * 1024 * 1024) {
+    setFeedback("icon", "请选择不超过 8 MB 的 SVG 或位图。");
+    return;
+  }
+  const reader = new FileReader();
+  const draft = state.editor;
+  reader.onload = () => {
+    const preview = new Image();
+    preview.onload = () => {
+      if (state.editor !== draft) return;
+      draft[`${mode}Image`] = reader.result;
+      draft[`${mode}Removed`] = false;
+      draft.dirty = true;
+      updateEngineIconPreviews();
+      $(`#remove-icon-${mode}`).disabled = false;
+      setFeedback("icon", file.name);
+    };
+    preview.onerror = () => {
+      if (state.editor === draft) setFeedback("icon", "无法读取图标，已保留上一次预览。");
+    };
+    preview.src = reader.result;
+  };
+  reader.onerror = () => {
+    if (state.editor === draft) setFeedback("icon", "无法读取图标。");
+  };
+  reader.readAsDataURL(file);
+}
+function engineAction(action, id) {
+  closeMenu(true);
+  const engine = engineById(id);
+  if (!engine) return;
+  const focus = `#menu-${id}`;
+  if (action === "edit-engine") return beginEditor(id);
+  if (action === "default-engine") prefs.defaultEngine = id;
+  if (action === "pin-engine") {
+    const index = prefs.pins.indexOf(id);
+    if (index < 0) prefs.pins.push(id);
+    else prefs.pins.splice(index, 1);
+  }
+  if (action === "delete-engine") {
+    const change = [prefs.defaultEngine === id ? "将改用其他已启用的默认引擎。" : "", prefs.selectionEngine === id ? "划词搜索将改用默认引擎，原划词快捷键将清除。" : ""].filter(Boolean).join("");
+    return openDialog(`删除「${engine.name}」？`, sub(`此引擎将从列表和置顶位置移除。${change}`), "删除引擎", () => () => {
+      const controls = $$("[data-action=engine-menu]", $("#engine-list"));
+      const index = controls.findIndex((button) => button.dataset.value === id);
+      const next = (controls[index + 1] || controls[index - 1])?.id;
+      prefs.custom = prefs.custom.filter((item) => item.id !== id);
+      prefs.engineOrder = prefs.engineOrder.filter((entry) => entry !== id);
+      prefs.pins = prefs.pins.filter((pin) => pin !== id);
+      prefs.disabledEngines = prefs.disabledEngines.filter((entry) => entry !== id);
+      if (prefs.selectionEngine === id) prefs.selection = "";
+      reconcileEngineChoices(prefs, enabledEngines().map((engine) => engine.id));
+      setFeedback("engine", `已删除 ${engine.name}。`);
+      refresh(next ? `#${next}` : "#engine-filter");
+    });
+  }
+  const messages = {
+    "default-engine": `已将 ${engine.name} 设为默认引擎。`,
+    "pin-engine": `${prefs.pins.includes(id) ? "已置顶" : "已取消置顶"} ${engine.name}。`,
+  };
+  setFeedback("engine", messages[action]);
+  refresh(focus);
+  $(focus)?.scrollIntoView({ block: "nearest" });
+}
+
+const shortcutNames = { main: "唤出易搜", selection: "划词搜索", clipboard: "剪贴板搜索", ocrKey: "OCR 搜索" };
+const shortcutDefaults = { main: "双击左 Alt", selection: "", clipboard: "", ocrKey: "Alt+Shift+O" };
+const modifierOrder = ["Ctrl", "Alt", "Shift", "Win"];
+const reservedShortcuts = new Set(["Alt+F4", "Alt+Tab", "Win+L", "Win+D", "Ctrl+Alt+Delete"]);
+const shortcutSymbols = {
+  Slash: "/", Comma: ",", Period: ".", Minus: "-", Equal: "=", BracketLeft: "[", BracketRight: "]",
+  Semicolon: ";", Quote: "'", Backquote: "`", Backslash: "\\", Space: "Space",
+};
+
+function shortcutModifiers(event) {
+  const down = [event.ctrlKey, event.altKey, event.shiftKey, event.metaKey];
+  return modifierOrder.filter((_, index) => down[index]);
+}
+function shortcutConflict(key, value) {
+  if (!value) return undefined;
+  const canonical = (text) => {
+    const parts = text.split("+");
+    const main = parts.pop();
+    return [...modifierOrder.filter((modifier) => parts.includes(modifier)), main].join("+");
+  };
+  return Object.keys(shortcutNames).find((other) =>
+    other !== key && (state.edition === "full" || other !== "ocrKey") && canonical(prefs[other]) === value);
+}
+function updateRecorder(key, mode = "idle", value = prefs[key], message = "") {
+  const field = $(`#record-${key}`);
+  if (!field) return;
+  field.dataset.state = mode;
+  field.classList.remove("invalid");
+  const dot = $(".shortcut-dot", field);
+  const display = $(".shortcut-value", field);
+  dot.hidden = mode !== "recording" || Boolean(value);
+  display.innerHTML = mode === "recording" && !value ? escapeHtml(localizeText("按下快捷键…")) : keys(value, mode === "recording");
+  const status = $(`#shortcut-message-${key}`);
+  status.dataset.tone = mode;
+  $("[role=status]", status).textContent = localizeText(message);
+  status.querySelector(".shortcut-conflict-actions")?.remove();
+  if (mode === "conflict") {
+    status.insertAdjacentHTML("beforeend", `<span class="shortcut-conflict-actions"> · ${btn("覆盖", "replace-key")} · ${btn("取消", "cancel-record")}</span>`);
+  }
+  $("[data-shortcut-reset] button", field.parentElement).hidden = prefs[key] === shortcutDefaults[key];
+}
+function cancelRecording(focus = false) {
+  const recording = state.recording;
+  if (!recording) return;
+  state.recording = null;
+  updateRecorder(recording.key);
+  if (focus) $(`#record-${recording.key}`)?.focus({ preventScroll: true });
+}
+function startRecording(key, button) {
+  if (state.recording?.key === key) return cancelRecording(true);
+  cancelRecording();
+  state.recording = { key, lastAlt: -Infinity, mode: "recording" };
+  updateRecorder(key, "recording", "", "按下快捷键 · Esc 取消 · Backspace 清除");
+  button.focus({ preventScroll: true });
+}
+function applyShortcut(key, value, replace = false) {
+  const other = shortcutConflict(key, value);
+  if (other && !replace) {
+    state.recording = { key, value, mode: "conflict" };
+    updateRecorder(key, "conflict", value, `此组合键已用于「${shortcutNames[other]}」。`);
+    return;
+  }
+  if (other) {
+    prefs[other] = "";
+    updateRecorder(other);
+  }
+  prefs[key] = value;
+  state.recording = null;
+  updateRecorder(key, "success");
+  const field = $(`#record-${key}`);
+  field.focus({ preventScroll: true });
+  clearTimeout(field.successTimer);
+  field.successTimer = setTimeout(() => {
+    if (field.dataset.state === "success") field.dataset.state = "idle";
+  }, 700);
+}
+function showShortcutModifiers(field, modifiers) {
+  $(".shortcut-dot", field).hidden = modifiers.length > 0;
+  $(".shortcut-value", field).innerHTML = modifiers.length
+    ? keys(modifiers.join("+"), true)
+    : escapeHtml(localizeText("按下快捷键…"));
+}
+function captureKey(event) {
+  const recording = state.recording;
+  if (!recording) return false;
+  const { key, mode } = recording;
+  if (event.key === "Escape" && event.target.closest("[data-shortcut]")?.dataset.shortcut === key && !shortcutModifiers(event).length) {
+    event.preventDefault();
+    cancelRecording(true);
+    return true;
+  }
+  const field = $(`#record-${key}`);
+  if (mode !== "recording" || event.target !== field || event.isComposing) return false;
+  const modifiers = shortcutModifiers(event);
+  if (event.key === "Tab" && !modifiers.length) return false;
+  event.preventDefault();
+  if (event.repeat) return true;
+  if (!modifiers.length && event.key === "Backspace") {
+    applyShortcut(key, "");
+    return true;
+  }
+  if (event.code === "AltLeft" && key === "main" && modifiers.length === 1) {
+    const now = performance.now();
+    if (now - recording.lastAlt < 500) {
+      applyShortcut(key, shortcutDefaults.main);
+      return true;
+    }
+    recording.lastAlt = now;
+  } else if (!["Alt", "Control", "Shift", "Meta", "AltGraph"].includes(event.key)) {
+    recording.lastAlt = -Infinity;
+    const physicalKey = /^(?:Key|Digit)([A-Z0-9])$/.exec(event.code);
+    const keyName = physicalKey?.[1] || shortcutSymbols[event.code] || event.key;
+    const value = [...modifiers, keyName].join("+");
+    const invalid = reservedShortcuts.has(value) ? "此组合键已由系统保留。" :
+      !modifiers.some((modifier) => modifier !== "Shift") && !/^F(?:[1-9]|1[0-2])$/.test(keyName)
+        ? "需要包含 Ctrl、Alt 或 Win（F1–F12 除外）。" : "";
+    if (!invalid && keyName !== "+" && keyName !== "Unidentified") {
+      applyShortcut(key, value);
+      return true;
+    }
+    if (invalid) {
+      const status = $(`#shortcut-message-${key}`);
+      status.dataset.tone = "invalid";
+      $("[role=status]", status).textContent = localizeText(invalid);
+      field.classList.remove("invalid");
+      void field.offsetWidth;
+      field.classList.add("invalid");
+    }
+  }
+  showShortcutModifiers(field, modifiers);
+  return true;
+}
+function refreshExcluded() {
+  $("#exclusion-items").innerHTML = exclusionChips();
+  $("#save-exclusions").disabled = sameExclusions();
+}
+function addExclusions(text) {
+  const entries = text.split(/[,，;\n]/).map((name) => name.trim().toLowerCase()).filter(Boolean);
+  if (!entries.length) return;
+  if (entries.some((name) => !/^[^\\/<>:"|?*]+\.exe$/i.test(name))) {
+    $("#exclusions-error").textContent = "请输入 .exe 文件名，例如 mstsc.exe。";
+    return;
+  }
+  state.exclusion = [...new Set([...state.exclusion, ...entries])];
+  $("#excluded-app").value = "";
+  $("#exclusions-error").textContent = "";
+  refreshExcluded();
+  $("#excluded-app").focus();
+}
+function applyBrowser() {
+  const path = state.browserPath.trim();
+  if (state.browser === "other" && !/^(?:[a-z]:\\|\\\\)[^<>:"|?*]+\.exe$/i.test(path)) {
+    $("#browser-error").textContent = "请输入完整的 Windows .exe 路径。";
+    $("#browser-path").focus();
+    return;
+  }
+  prefs.browser = state.browser;
+  prefs.browserPath = state.browser === "other" ? path : "";
+  $("#save-browser").disabled = true;
+  setFeedback("browser", "已应用浏览器设置。");
+}
+let historyTimer;
+function updateHistory() {
+  clearTimeout(historyTimer);
+  const results = $("#history-results");
+  if (results) results.innerHTML = historyResults();
+}
+function actOnHistory(action, id) {
+  const record = state.historyRows.find((item) => item.id === Number(id));
+  if (!record) return;
+  if (action === "repeat-search") {
+    const engine = engineById(record.engine) || engineById(prefs.defaultEngine);
+    const url = engine.url.replaceAll("%s", encodeURIComponent(record.query));
+    openDialog("再次搜索", `<div class="label">${escapeHtml(record.query)}</div><p class="path">${escapeHtml(url)}</p>`, "", null, { cancel: "关闭" });
+    if (prefs.history) {
+      const next = Math.max(0, ...state.historyRows.map((row) => row.id)) + 1;
+      state.historyRows = [{ ...record, id: next, source: "易搜", time: new Date() }, ...state.historyRows];
+      dialog.addEventListener("close", updateHistory, { once: true });
+    }
+    return;
+  }
+  const oldRows = $$("[data-history-row]");
+  const index = oldRows.findIndex((row) => row.id === `history-${id}`);
+  const adjacent = (oldRows[index + 1] || oldRows[index - 1])?.id;
+  state.historyRows = state.historyRows.filter((item) => item.id !== Number(id));
+  updateHistory();
+  (adjacent && $(`#${adjacent}`) || $("[data-history-row]") || $("#history-query"))?.focus({ preventScroll: true });
+  setFeedback("history", "已删除这条记录。");
+}
+function chooseModelFolder() {
+  openDialog("选择模型文件夹", `<div class="group">${demoFolders.map(([path, detail], index) => `<label class="row radio-row"><input type="radio" name="folder-choice" value="${index}"${index === 0 ? " checked" : ""}>${icon("folder")}<span class="copy"><span class="path">${escapeHtml(path)}</span><span class="subtle" style="display:block">${detail}</span></span></label>`).join("")}</div>`, "选择文件夹", () => {
+    state.ocrPath = demoFolders[Number($("input[name=folder-choice]:checked").value)][0];
+    state.ocrStatus = "initial";
+    return () => refresh("#apply-ocr");
+  }, { focus: "[name=folder-choice]:checked" });
+}
+function validateModel(enable) {
+  if (state.ocrStatus === "checking") return;
+  const path = state.ocrPath.trim().replace(/[\\/]+$/, "");
+  if (!path) {
+    if (!enable) {
+      prefs.ocrPath = "";
+      prefs.ocrEnabled = false;
+      state.ocrStatus = "initial";
+      setFeedback("ocr", "");
+      updateOcrControls();
+      $("#ocr-path").focus();
+      return;
+    }
+    setFeedback("ocr", "请先选择本地模型文件夹。");
+    $("#ocr-path").focus();
+    return;
+  }
+  const focusAfterCheck = document.activeElement;
+  state.ocrStatus = "checking";
+  updateOcrControls();
+  setTimeout(() => {
+    const choice = demoFolders.findIndex(([folder]) => folder.toLowerCase() === path.toLowerCase());
+    const result = ["ready", "missing", "checksum"][choice] || "unknown";
+    state.ocrStatus = result;
+    if (result === "ready") {
+      prefs.ocrPath = path;
+      if (enable) prefs.ocrEnabled = true;
+      setFeedback("ocr", enable ? "OCR 搜索已启用。" : "已应用模型目录。");
+    } else {
+      setFeedback("ocr", "");
+    }
+    if (state.page === "ocr") {
+      updateOcrControls();
+      if (document.activeElement === document.body) {
+        (focusAfterCheck?.isConnected ? focusAfterCheck : $("#apply-ocr")).focus({ preventScroll: true });
+      }
+    }
+  }, 520);
+}
+function changeOcr(button) {
+  if (prefs.ocrEnabled) {
+    updateSwitch(button, "ocrEnabled");
+    $("#ocr-status").innerHTML = ocrStatusWithActivePath();
+    setFeedback("ocr", "OCR 搜索已关闭。");
+    return;
+  }
+  if (state.ocrStatus === "ready" && prefs.ocrPath === state.ocrPath.trim()) {
+    updateSwitch(button, "ocrEnabled");
+    setFeedback("ocr", "OCR 搜索已启用。");
+    return;
+  }
+  validateModel(true);
+}
+function chooseConfig() {
+  openDialog("更换配置位置", `<div class="field"><label for="next-config">配置文件路径</label><input class="path" id="next-config" value="${escapeHtml(state.nextConfig || prefs.configPath)}"><p class="error" id="config-error" role="alert"></p></div>`, "确认", () => {
+    const next = $("#next-config").value.trim();
+    if (!/^(?:[a-z]:\\|\\\\)[^<>:"|?*]+\.json$/i.test(next)) {
+      $("#config-error").textContent = "请输入完整的 Windows .json 路径。";
+      $("#next-config").focus();
+      return false;
+    }
+    state.nextConfig = next;
+    return () => refresh("#choose-config");
+  }, { focus: "#next-config" });
+}
+function downloadJson(name, data) {
+  const href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+  const link = document.createElement("a");
+  link.href = href;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(href), 500);
+  setFeedback("config", `已导出 ${name}。`);
+}
+function validCustom(item) {
+  return validEngine(item) && typeof item.id === "string" && /^custom-[a-z0-9-]+$/i.test(item.id);
+}
+function validEngine(item) {
+  return item && typeof item.name === "string" && item.name.trim() &&
+    typeof item.alias === "string" && /^[a-z0-9_-]*$/i.test(item.alias) &&
+    typeof item.url === "string" && searchTemplate(item.url) &&
+    typeof item.color === "string" && isColor(item.color);
+}
+function importedEngine(item, id) {
+  const { name, alias, url, color, accent, image, monoImage, colorImage, monoRemoved, colorRemoved } = item;
+  return {
+    id, name, alias: alias.toLowerCase(), url, color,
+    ...(isColor(accent) ? { accent } : {}),
+    ...(isIconData(image) ? { image } : {}),
+    ...(isIconData(monoImage) ? { monoImage } : {}),
+    ...(isIconData(colorImage) ? { colorImage } : {}),
+    ...(monoRemoved === true ? { monoRemoved } : {}),
+    ...(colorRemoved === true ? { colorRemoved } : {}),
+  };
+}
+function previewConfig(data, pack) {
+  if (!data || data.schema !== 1) throw new Error("文件版本无效。");
+  const incoming = pack ? data.engines : data.preferences?.custom;
+  if (!Array.isArray(incoming) || incoming.some((item) => !validCustom(item))) throw new Error("自定义引擎数据无效。");
+  if (new Set(incoming.map(({ id }) => id)).size !== incoming.length) throw new Error("引擎标识重复。");
+  const sanitized = incoming.map((item) => importedEngine(item, item.id));
+  const merged = new Map(pack ? prefs.custom.map((item) => [item.id, item]) : []);
+  sanitized.forEach((item) => merged.set(item.id, item));
+  const custom = [...merged.values()];
+  const overrides = pack ? prefs.builtInOverrides : Object.fromEntries(builtIns.flatMap(({ id }) => {
+    const item = data.preferences.builtInOverrides?.[id];
+    return validEngine(item) ? [[id, importedEngine(item, id)]] : [];
+  }));
+  const all = [...builtIns.map((item) => overrides[item.id] || item), ...custom];
+  const aliases = all.map(({ alias }) => alias).filter(Boolean);
+  if (new Set(aliases).size !== aliases.length) throw new Error("引擎别名重复。");
+  const values = pack ? data.pins : data.preferences?.pins;
+  const ids = new Set(all.map(({ id }) => id));
+  if (!Array.isArray(values) || values.some((id) => !ids.has(id))) throw new Error("置顶列表包含无效引擎。");
+  const pins = [...new Set(pack ? [...values, ...prefs.pins] : values)];
+  const imported = {};
+  if (!pack) {
+    const order = data.preferences.engineOrder;
+    imported.builtInOverrides = overrides;
+    imported.engineOrder = Array.isArray(order) ? [...new Set(order.filter((id) => ids.has(id)))] : [];
+    for (const [key, value] of Object.entries(prefs)) {
+      if (typeof value === "boolean" && typeof data.preferences[key] === "boolean") imported[key] = data.preferences[key];
+      if (typeof value === "string" && typeof data.preferences[key] === "string") imported[key] = data.preferences[key];
+    }
+    const disabled = Array.isArray(data.preferences.disabledEngines) ? data.preferences.disabledEngines : [];
+    imported.disabledEngines = [...new Set(disabled.filter((id) => ids.has(id)))];
+    if (imported.disabledEngines.length === ids.size) {
+      imported.disabledEngines = imported.disabledEngines.filter((id) => id !== "bing");
+    }
+    reconcileEngineChoices(imported, [...ids].filter((id) => !imported.disabledEngines.includes(id)));
+    imported.fontStyle = fontFacesFor(imported.font).includes(imported.fontStyle) ? imported.fontStyle : "regular";
+    imported.fontSize = validFontSize(data.preferences.fontSize) ? data.preferences.fontSize : defaultFontSize;
+    imported.fontScript = Object.hasOwn(fontScripts, imported.fontScript) ? imported.fontScript : "zh-CN";
+    if (Number.isInteger(data.preferences.iconSize) && data.preferences.iconSize >= minIconSize) {
+      imported.iconSize = Math.min(maxIconSize, data.preferences.iconSize);
+    }
+    if (Array.isArray(data.preferences.excluded)) imported.excluded = data.preferences.excluded.filter((value) => typeof value === "string");
+    if (!demoFolders.some(([path], index) => index === 0 && path === imported.ocrPath)) imported.ocrEnabled = false;
+  }
+  return { ...imported, custom, pins };
+}
+async function importConfig(file, pack) {
+  try {
+    const candidate = previewConfig(JSON.parse(await file.text()), pack);
+    openDialog(pack ? "导入搜索引擎包？" : "替换当前配置？", sub(`${file.name} · ${pack ? "合并自定义引擎和置顶顺序。" : "替换此原型中的当前设置。"}`), "导入", () => () => {
+      Object.assign(prefs, candidate);
+      if (!pack) {
+        state.language = prefs.language;
+        state.browser = prefs.browser;
+        state.browserPath = prefs.browserPath;
+        state.exclusion = [...prefs.excluded];
+        state.ocrPath = prefs.ocrPath;
+        state.ocrStatus = prefs.ocrPath === demoFolders[0][0] ? "ready" : "initial";
+      }
+      setFeedback("config", `已导入 ${file.name}。`);
+      if (state.page === "config") refresh(pack ? "#import-engines" : "#import-config");
+    });
+  } catch (error) {
+    setFeedback("config", `导入失败。${error.message}`);
+  }
+}
+
+const actions = {
+  navigate: (page) => showPage(page),
+  expand: () => setSize($("#prototype").dataset.size === "large" ? "regular" : "large"),
+  toggle: (key, button) => {
+    if (key === "ocrEnabled") return changeOcr(button);
+    updateSwitch(button, key);
+    if (key === "names" || key === "colorIcons") {
+      const current = engineById(prefs.defaultEngine);
+      const tiles = $(".sample-grid");
+      tiles.dataset.names = prefs.names;
+      tiles.innerHTML = appearanceTiles(current);
+      if (key === "colorIcons" && current) $(".search-preview .brand-icon").outerHTML = brand(current);
+    }
+  },
+  "apply-language": () => {
+    prefs.language = state.language;
+    document.documentElement.lang = uiLanguage();
+    setFeedback("general", uiLanguage() === "en" ? "Language preference applied." : "已应用界面语言。");
+    drawChrome();
+    refresh("#language");
+    localize($(".preview-bar"));
+  },
+  "choose-font": chooseFont,
+  "step-icon-size": (step) => finishIconSize($("#engine-icon-size"), true, Number(step)),
+  "font-file": () => pickFile(".ttf,.otf,.ttc,.otc", loadFont),
+  "reset-font": () => {
+    setFont(defaultFont);
+    refresh("#choose-font");
+  },
+  "add-engine": () => beginEditor(),
+  "engine-menu": (id, anchor) => openMenu(anchor, id),
+  "engine-enabled": toggleEngine,
+  "cancel-engine": () => guardEditor(() => exitEditor(state.editor.id ? `#menu-${state.editor.id}` : "#add-engine")),
+  "test-engine": () => engineDraft(true),
+  "accent-help": () => openDialog("关于强调色", sub("没有图标时，强调色用作引擎首字母图标的底色。导入的 SVG 若使用 currentColor，也会读取这个颜色。单色配色单独控制单色模式下的图标颜色。"), "", null, { cancel: "关闭" }),
+  "icon-file": (mode) => pickFile(".svg,.png,.jpg,.jpeg,.bmp,.ico,.webp", (file) => loadEngineIcon(file, mode)),
+  "remove-icon": (mode) => {
+    if (mode === "mono") delete state.editor.image;
+    delete state.editor[`${mode}Image`];
+    state.editor[`${mode}Removed`] = true;
+    state.editor.dirty = true;
+    state.feedback.delete("icon");
+    refresh(`#icon-file-${mode}`);
+  },
+  "reset-engine-color": () => {
+    state.editor.color = "#000000";
+    state.editor.dirty = true;
+    refresh("#engine-color");
+  },
+  "reset-engine": () => {
+    const original = builtIns.find((engine) => engine.id === state.editor.id);
+    if (!original) return;
+    state.editor = { ...original, dirty: true };
+    state.feedback.delete("icon");
+    refresh("#engine-name");
+  },
+  "clear-engines": () => {
+    state.engineFilter = "";
+    refresh("#engine-filter");
+  },
+  "start-record": startRecording,
+  "cancel-record": () => cancelRecording(true),
+  "replace-key": () => {
+    const recording = state.recording;
+    if (recording?.mode === "conflict") applyShortcut(recording.key, recording.value, true);
+  },
+  "reset-key": (key) => {
+    cancelRecording();
+    applyShortcut(key, shortcutDefaults[key]);
+  },
+  "goto-ocr": () => {
+    showPage("ocr", "#record-ocrKey");
+    $("#record-ocrKey")?.scrollIntoView({ block: "nearest" });
+  },
+  "add-exclusion": () => addExclusions($("#excluded-app").value),
+  "remove-exclusion": (index) => {
+    state.exclusion.splice(Number(index), 1);
+    refreshExcluded();
+    $("#excluded-app").focus();
+  },
+  "save-exclusions": () => {
+    prefs.excluded = [...state.exclusion];
+    $("#save-exclusions").disabled = true;
+    setFeedback("keys", "已应用排除列表。");
+  },
+  "browse-browser": () => pickFile(".exe", (file) => {
+    state.browserPath = `C:\\Program Files\\${file.name}`;
+    if (state.page === "browser") refresh("#browser-path");
+  }),
+  "save-browser": applyBrowser,
+  "clear-history": () => {
+    state.historyQuery = state.historySource = "";
+    state.historyPage = 0;
+    refresh("#history-query");
+  },
+  "history-page": (direction) => {
+    state.historyPage += Number(direction);
+    updateHistory();
+    const row = $("[data-history-row]");
+    row?.focus({ preventScroll: true });
+    row?.scrollIntoView({ block: "start" });
+  },
+  "repeat-search": (id) => actOnHistory("repeat-search", id),
+  "delete-history": (id) => actOnHistory("delete-history", id),
+  "browse-ocr": chooseModelFolder,
+  "apply-ocr": () => validateModel(false),
+  "choose-config": chooseConfig,
+  "import-config": () => pickFile(".json,application/json", (file) => importConfig(file, false)),
+  "export-config": () => downloadJson("yisou-demo-settings.json", { schema: 1, preferences: prefs }),
+  "import-engines": () => pickFile(".json,application/json", (file) => importConfig(file, true)),
+  "export-engines": () => downloadJson("yisou-demo-engines.json", { schema: 1, engines: prefs.custom, pins: prefs.pins }),
+};
+for (const name of ["default-engine", "pin-engine", "edit-engine", "delete-engine"]) {
+  actions[name] = (id) => engineAction(name, id);
+}
+
+document.addEventListener("click", (event) => {
+  const button = event.target.closest("button");
+  if (!menu.contains(event.target) && button !== state.engineMenu) closeMenu();
+  if (!button || button.disabled) return;
+  if (button.dataset.edition) setEdition(button.dataset.edition);
+  if (button.dataset.sizeChoice) setSize(button.dataset.sizeChoice);
+  const action = actions[button.dataset.action];
+  if (action) action(button.dataset.value, button);
+});
+document.addEventListener("submit", (event) => {
+  if (event.target.id !== "engine-form") return;
+  event.preventDefault();
+  engineDraft(false);
+});
+document.addEventListener("input", (event) => {
+  const input = event.target;
+  if (input.dataset.draft && state.editor) {
+    state.editor[input.dataset.draft] = input.value;
+    state.editor.dirty = true;
+    if (["engine-name", "engine-color", "engine-accent"].includes(input.id)) updateEngineIconPreviews();
+    if (input.id === "engine-color") $("#reset-engine-color").disabled = input.value === "#000000";
+    if (input.type !== "color") engineFieldError(input.dataset.draft, "");
+  }
+  if (input.id === "engine-filter") {
+    finishEngineDrag(false);
+    state.engineFilter = input.value;
+    $("#engine-list").innerHTML = engineRows();
+  }
+  if (input.id === "history-query" || input.id === "history-source") {
+    if (event.isComposing) return;
+    if (input.id === "history-query") state.historyQuery = input.value;
+    else state.historySource = input.value;
+    state.historyPage = 0;
+    clearTimeout(historyTimer);
+    historyTimer = setTimeout(updateHistory, 140);
+  }
+  if (input.id === "browser-path") {
+    state.browserPath = input.value;
+    $("#save-browser").disabled = !browserChanged();
+    $("#browser-error").textContent = "";
+  }
+  if (input.id === "ocr-path") {
+    state.ocrPath = input.value;
+    state.ocrStatus = "initial";
+    $("#ocr-status").innerHTML = ocrStatusWithActivePath();
+    setFeedback("ocr", "");
+  }
+});
+document.addEventListener("change", (event) => {
+  const input = event.target;
+  if (input.id === "language") {
+    state.language = input.value;
+    $("#apply-language").disabled = prefs.language === state.language;
+  }
+  if (input.name === "browser") {
+    state.browser = input.value;
+    state.feedback.delete("browser");
+    refresh(`#browser-${input.value}`);
+  }
+  if (input.id === "selection-engine") prefs.selectionEngine = input.value;
+  if (input.id === "selection-action") prefs.selectionAction = input.value;
+});
+function finishIconSize(input, commit, step = 0) {
+  const value = input.value.trim();
+  if (commit && /^[0-9]+$/.test(value) && Number(value) >= minIconSize) {
+    prefs.iconSize = Math.min(maxIconSize, Number(value));
+  }
+  prefs.iconSize = Math.max(minIconSize, Math.min(maxIconSize, prefs.iconSize + step));
+  $(".search-preview").style.setProperty("--engine-size", `${prefs.iconSize}px`);
+  input.value = prefs.iconSize;
+  input.setAttribute("aria-valuenow", prefs.iconSize);
+  const decrease = $("#decrease-icon-size");
+  const increase = $("#increase-icon-size");
+  if ((prefs.iconSize === minIconSize && document.activeElement === decrease) ||
+      (prefs.iconSize === maxIconSize && document.activeElement === increase)) {
+    input.focus();
+  }
+  decrease.disabled = prefs.iconSize === minIconSize;
+  increase.disabled = prefs.iconSize === maxIconSize;
+}
+document.addEventListener("focusout", (event) => {
+  if (event.target.id === "engine-icon-size" && $(".search-preview")) finishIconSize(event.target, true);
+  const recording = state.recording;
+  if (recording?.mode === "recording" && event.target.id === `record-${recording.key}`) cancelRecording();
+});
+document.addEventListener("keyup", (event) => {
+  const recording = state.recording;
+  if (recording?.mode === "recording" && event.target.id === `record-${recording.key}`) {
+    showShortcutModifiers(event.target, shortcutModifiers(event));
+  }
+});
+document.addEventListener("animationend", (event) => {
+  if (event.animationName === "shortcut-shake") event.target.classList.remove("invalid");
+});
+window.addEventListener("blur", () => {
+  if (state.recording?.mode === "recording") cancelRecording();
+});
+document.addEventListener("paste", (event) => {
+  if (event.target.id !== "excluded-app") return;
+  const value = event.clipboardData.getData("text");
+  if (!/[,，;\n]/.test(value)) return;
+  event.preventDefault();
+  addExclusions(value);
+});
+document.addEventListener("keydown", (event) => {
+  if (dialog.open || event.isComposing) return;
+  if (state.engineDrag) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      finishEngineDrag(false, true);
+    }
+    return;
+  }
+  const engineRow = event.target.closest("[data-engine-id]");
+  if (engineRow && event.altKey && ["ArrowUp", "ArrowDown"].includes(event.key)) {
+    event.preventDefault();
+    const after = event.key === "ArrowDown";
+    const sibling = after ? engineRow.nextElementSibling : engineRow.previousElementSibling;
+    if (sibling?.dataset.engineId) reorderEngine(engineRow, sibling, after);
+    return;
+  }
+  if (event.target.id === "engine-icon-size" && ["Enter", "Escape"].includes(event.key)) {
+    event.preventDefault();
+    finishIconSize(event.target, event.key === "Enter");
+    return;
+  }
+  if (event.target.id === "engine-icon-size" && ["ArrowUp", "ArrowDown"].includes(event.key)) {
+    event.preventDefault();
+    finishIconSize(event.target, true, event.key === "ArrowUp" ? 1 : -1);
+    return;
+  }
+  if (state.engineMenu) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeMenu(true);
+      return;
+    }
+    if (event.key === "Tab") {
+      closeMenu(true);
+      return;
+    }
+    if (["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+      event.preventDefault();
+      const buttons = $$("button:not(:disabled)", menu);
+      const current = buttons.indexOf(document.activeElement);
+      const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 :
+        (current + (event.key === "ArrowUp" ? -1 : 1) + buttons.length) % buttons.length;
+      buttons[next]?.focus();
+      return;
+    }
+  }
+  if (captureKey(event)) return;
+  const navigation = event.target.closest(".nav");
+  if (navigation && ["ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) {
+    event.preventDefault();
+    const items = $$(".nav", nav);
+    const index = items.indexOf(navigation);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 :
+      (index + (event.key === "ArrowUp" ? -1 : 1) + items.length) % items.length;
+    items[next].focus();
+    return;
+  }
+  if (event.key === "Escape" && state.editor) {
+    actions["cancel-engine"]();
+    return;
+  }
+  if (event.key === "Enter" && event.target.id === "excluded-app") {
+    event.preventDefault();
+    addExclusions(event.target.value);
+  }
+  const row = event.target.closest("[data-history-row]");
+  if (row && event.target === row && ["Enter", "Delete"].includes(event.key)) {
+    event.preventDefault();
+    actOnHistory(event.key === "Enter" ? "repeat-search" : "delete-history", row.dataset.historyRow);
+  }
+});
+content.addEventListener("scroll", () => closeMenu(), { passive: true });
+window.addEventListener("resize", () => {
+  finishEngineDrag(false);
+  closeMenu(true);
+});
+
+document.documentElement.lang = uiLanguage();
+drawChrome();
+refresh();
+if (location.hash === "#add-engine") {
+  changePage("engines");
+  beginEditor();
+} else if (location.hash === "#appearance") {
+  changePage("appearance");
+}
+</script>
+</body>
+</html>

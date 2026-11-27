@@ -3,7 +3,8 @@ param(
     [Parameter(Mandatory)][string]$Models,
     [ValidateRange(3, 100)][int]$Cycles = 13,
     [ValidateSet('Small', 'FullScreen')][string]$Selection = 'Small',
-    [switch]$MeasureCooldown
+    [switch]$MeasureCooldown,
+    [ValidateRange(0, 60)][double]$ReopenDelaySeconds = 0
 )
 $ErrorActionPreference = 'Stop'
 $binaries = @($Binary | ForEach-Object { (Resolve-Path -LiteralPath $_).Path })
@@ -122,6 +123,7 @@ try {
             $ready = [Collections.Generic.List[double]]::new()
             $settledWorking = [Collections.Generic.List[double]]::new()
             $settledPrivate = [Collections.Generic.List[double]]::new()
+            $betweenPrivate = [Collections.Generic.List[double]]::new()
             $exe.Refresh()
             $idleWorking = $exe.WorkingSet64 / 1MB
             for ($cycle = 0; $cycle -lt $Cycles; $cycle++) {
@@ -171,6 +173,11 @@ try {
                 $settledWorking.Add($exe.WorkingSet64 / 1MB)
                 $settledPrivate.Add($exe.PrivateMemorySize64 / 1MB)
                 Post-TestMessage $overlay 0x100 0x1b
+                if ($ReopenDelaySeconds -gt 0) {
+                    Start-Sleep -Seconds $ReopenDelaySeconds
+                    $exe.Refresh()
+                    $betweenPrivate.Add($exe.PrivateMemorySize64 / 1MB)
+                }
             }
             if ($MeasureCooldown) { Start-Sleep -Milliseconds 11200 }
             $exe.Refresh()
@@ -186,6 +193,8 @@ try {
             [pscustomobject]@{
                 Binary = $executable
                 Selection = $Selection
+                ReopenDelaySeconds = $ReopenDelaySeconds
+                BetweenPrivateMiB = if ($betweenPrivate.Count) { Report $betweenPrivate 0.5 }
                 IdleWorkingSetMiB = [Math]::Round($idleWorking, 2)
                 ReadyWorkingSetMiB = Report $settledWorking 0.5
                 ReadyPrivateMiB = Report $settledPrivate 0.5

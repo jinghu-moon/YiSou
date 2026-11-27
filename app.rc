@@ -1,0 +1,32 @@
+#include <winver.h>
+
+101 ICON "assets/app-icon/yisou-light.ico"
+
+#ifdef APP_NOTICES
+YISOU_LICENSES RCDATA APP_NOTICES
+#endif
+
+1 VERSIONINFO
+FILEVERSION APP_VERSION_NUMBER
+PRODUCTVERSION APP_VERSION_NUMBER
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "FileDescription", APP_DESCRIPTION
+            VALUE "FileVersion", APP_VERSION_STRING
+            VALUE "InternalName", "YiSou"
+            VALUE "OriginalFilename", "YiSou.exe"
+            VALUE "ProductName", "YiSou"
+            VALUE "ProductVersion", APP_VERSION_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

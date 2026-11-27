@@ -1,4 +1,4 @@
-param([string]$Output = "build/ocr-fixtures")
+param([string]$Output = "target/ocr-fixtures")
 
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
@@ -8,7 +8,7 @@ $samples = @(
     @{ file = "terminal-small.png"; font = "Consolas"; size = 15; bg = "#171717"; fg = "#e6e6e6"
        lines = @('error[E0425]: cannot find value', '  --> src\main.rs:18:5'); tokens = @('E0425', 'src\main.rs:18:5') },
     @{ file = "windows-error.png"; font = "Microsoft YaHei UI"; size = 16; bg = "#f4f4f4"; fg = "#222222"
-       lines = @('系统找不到指定路径。错误码 0x80070003', 'D:\Projects\YiSou\build\release'); tokens = @('0x80070003', 'D:\Projects\YiSou\build\release') },
+       lines = @('系统找不到指定路径。错误码 0x80070003', 'D:\Projects\YiSou\target\release'); tokens = @('0x80070003', 'D:\Projects\YiSou\target\release') },
     @{ file = "mixed-dark.png"; font = "Microsoft YaHei UI"; size = 19; bg = "#1f2331"; fg = "#e5e9f0"
        lines = @('构建失败：找不到依赖 rapid-structure-rs', '运行 cargo test --release 后重试'); tokens = @('rapid-structure-rs', 'cargo test --release') },
     @{ file = "punctuation.png"; font = "Consolas"; size = 17; bg = "#ffffff"; fg = "#323232"

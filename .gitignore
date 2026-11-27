@@ -1,8 +1,7 @@
-/build/
 /target/
-/rust/target/
 /refer/
 /.spec-workflow/
+/.playwright-mcp/
 /.vs/
 /assets/fonts/HarmonyOS_SansSC_Regular.ttf
 /settings.ini
