@@ -95,11 +95,11 @@ Rust 重构分支为 `refactor/rust`，从本地 `main` 的 `6e3054a` 分出。�
 
 从仓库根目录运行 `cargo test --locked --workspace`，Full 版增加 `--features ocr`。测试覆盖 C++ 查询基准、URL 边界、别名与失败重试、配置保存失败与导入导出、选择请求取消、双 Alt 和时间回绕、内置图标和曲线、独立配置路径、Windows 单实例、浏览器枚举及热键冲突。图标由 `yisou_svg` 渲染。配置使用版本化 JSON，默认目录为 `%LOCALAPPDATA%\YiSouRust`。
 
-原生窗口保留现有底层与消费层。[`platform`](../rust/src/platform.rs) 负责 Windows 服务，[应用层](../rust/src/application.rs) 负责搜索、引擎、配置与历史。窗口入口只负责初始化、单实例唤醒和消息循环。搜索窗口、引擎弹窗、七页设置、托盘、划词任务和共享绘制各自放在 [原生窗口目录](../rust/src/native/)。
+原生窗口保留现有底层与消费层。[`platform`](../src/platform.rs) 负责 Windows 服务，[应用层](../src/application.rs) 负责搜索、引擎、配置与历史。窗口入口只负责初始化、单实例唤醒和消息循环。搜索窗口、引擎弹窗、七页设置、托盘、划词任务和共享绘制各自放在 [原生窗口目录](../src/native/)。
 
-C++ 基线四项 CTest 已复跑通过。Rust 回归覆盖 [业务与迁移](../rust/tests/migration.rs)、[Windows 适配器](../rust/tests/windows.rs)和 [原生窗口](../rust/tests/native_ui.rs)。窗口测试启动实际进程，检查引擎菜单、别名提示、设置切页和保存、单实例唤醒、关闭到托盘和正常退出。
+C++ 基线四项 CTest 已复跑通过。Rust 回归覆盖 [业务与迁移](../tests/migration.rs)、[Windows 适配器](../tests/windows.rs)和 [原生窗口](../tests/native_ui.rs)。窗口测试启动实际进程，检查引擎菜单、别名提示、设置切页和保存、单实例唤醒、关闭到托盘和正常退出。
 
-划词的 [交互式回归](../rust/src/platform/selection/tests.rs) 分别验证 Win32 Edit、RichEdit UI Automation，以及 Ctrl+C 未响应后的 Ctrl+Insert 和原剪贴板文本与自定义格式恢复。产品快捷键已通过 Edge 页面及工具栏焦点、Windows Terminal 单窗格和分屏验收。旧式控制台及更多第三方应用、自启动、Explorer 重启、IME、混合 DPI 和截图对照仍待验收。
+划词的 [交互式回归](../src/platform/selection/tests.rs) 分别验证 Win32 Edit、RichEdit UI Automation，以及 Ctrl+C 未响应后的 Ctrl+Insert 和原剪贴板文本与自定义格式恢复。产品快捷键已通过 Edge 页面及工具栏焦点、Windows Terminal 单窗格和分屏验收。旧式控制台及更多第三方应用、自启动、Explorer 重启、IME、混合 DPI 和截图对照仍待验收。
 
 ### Rust 原生版性能优化
 
@@ -124,8 +124,8 @@ C++ 基线四项 CTest 已复跑通过。Rust 回归覆盖 [业务与迁移](../
 启动 Rust 版前可设置 `YISOU_MEMORY_TRACE` 为 CSV 路径，父目录需要已存在。退出正在运行的实例后重新启动，采样记录由常驻进程写入。CSV 含 PID、相对时间、工作集、私有字节、峰值工作集以及 GDI 和 USER 对象数量，采样点覆盖启动、搜索框首次绘制、菜单显示、托盘释放、历史页加载、历史缓存释放和退出。日常运行默认关闭。
 
 ```powershell
-$env:YISOU_MEMORY_TRACE = Join-Path $PWD 'build/rust-memory.csv'
-Start-Process build/rust-native/release/YiSou.exe
+$env:YISOU_MEMORY_TRACE = Join-Path $PWD 'target/rust-memory.csv'
+Start-Process target/release/YiSou.exe
 Remove-Item Env:YISOU_MEMORY_TRACE
 ```
 

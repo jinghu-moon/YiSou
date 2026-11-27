@@ -86,7 +86,7 @@ flowchart LR
 
 ## 7. Rust 首轮实现
 
-Windows x64 MSVC 发布 `full` 和 `lite`。从仓库根目录运行 `./tools/build-rust-editions.ps1`，产物位于 `build/editions/full` 和 `build/editions/lite`。Full 启用 Cargo 的 `ocr` 功能，首次安装默认关闭 OCR。Lite 排除 OCR 引擎、入口和设置控件。两版读取同一份 JSON，切换版本时保留 OCR 设置。
+Windows x64 MSVC 发布 `full` 和 `lite`。从仓库根目录运行 `./tools/build-rust-editions.ps1`，产物位于 `target/editions/full` 和 `target/editions/lite`。Full 启用 Cargo 的 `ocr` 功能，首次安装默认关闭 OCR。Lite 排除 OCR 引擎、入口和设置控件。两版读取同一份 JSON，切换版本时保留 OCR 设置。
 
 Full 的「设置 → 快捷键 → OCR 搜索」提供 ModelScope `v3.9.1` 的检测模型、识别模型和字典下载按钮。把三份文件放在同一目录，选择该目录并打开 OCR。目录可用绝对路径或相对于当前 JSON 配置文件的路径。易搜在启用和加载会话时校验 SHA-256，模型由用户提供。ONNX Runtime 静态链接，当前构建仍导入 DirectML 和 Visual C++ 运行库，干净系统的部署需要单独验证。
 
@@ -150,11 +150,11 @@ Full 的「设置 → 快捷键 → OCR 搜索」提供 ModelScope `v3.9.1` 的�
 启用 `ocr-ui-test` 后运行 `native_ui` 测试可检查桌面合成像素。测试构建允许屏幕 DC 观察边框，并通过隐藏遮罩的路径采集 OCR 截图。
 
 ```powershell
-cargo build --locked --release --target-dir build/rust-native --features ocr --bin YiSou --example ocr_bench
+cargo build --locked --release --features ocr --bin YiSou --example ocr_bench
 ./tools/new-ocr-bench-fixtures.ps1
 $modelRoot = 'D:/100_Projects/110_Daily/A-Crate/Rapid-OCR-RS/models/text'
-& ./build/rust-native/release/examples/ocr_bench.exe $modelRoot tiny build/ocr-fixtures/manifest.json
-& ./build/rust-native/release/examples/ocr_bench.exe $modelRoot small build/ocr-fixtures/manifest.json
+& ./target/release/examples/ocr_bench.exe $modelRoot tiny target/ocr-fixtures/manifest.json
+& ./target/release/examples/ocr_bench.exe $modelRoot small target/ocr-fixtures/manifest.json
 ```
 
 七个合成小选区覆盖 14–22 像素字号、终端报错、路径、中英混排、标点和空白区域。CER 忽略空白，关键字逐字比较。耗时以同一机器上的合成样本为准，包含推理及其前后处理。
